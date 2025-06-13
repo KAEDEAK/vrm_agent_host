@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title data-locale="title.main">VRM Agent Host (New Layout)</title>
+
+  <!-- i18n script (must be served by the server at "/i18n-loader.js") -->
+  <script src="/i18n-loader.js"></script>
+
+  <style>
+   :root {
+      --font-family: "Segoe UI", Consolas, sans-serif;
+      --border-radius: 4px;
+
+      /* Light theme colors */
+      --bg-color: #ffffff;
+      --text-color: #1e1e1e;
+      --section-bg: #f0f0f0;
+      --subsection-bg: #ffffff;
+      --subsection-border: #ccc;
+      --input-bg: #ffffff;
+      --input-border: #888;
+      --link-color: #006ab1;
+      --button-bg: #007acc;
+      --button-hover: #005f9e;
+      --console-bg: rgba(240, 240, 240, 0.95);
+      --console-text: #333;
+      --console-border: #ccc;
+      --htext-color: #335;
+      --htext-bgcolor: rgba(255, 255, 255, .55);
+      --htext2-color: #335;
+      --htext2-bgcolor: rgba(0, 64, 0, .25);
+      --toc-list-color:#00f;
+    }
+
+    /*********************************************
+     * 通常(=デフォルト/auto)のスタイル
+     *********************************************/
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 0;
+      min-width: 200px;
+    }
+    .main {
+      padding: 10px;
+    }
+
+    h1 {
+      color: var(--htext-color);
+      background-color: var(--htext-bgcolor);
+      padding: 4px 16px;
+      margin: 0 0 10px 0;
+      position: relative;
+    }
+    /* テーマ選択のプルダウンを右側に置く */
+    #themeSelect {
+      position: absolute;
+      right: 345px;
+      top: 4px;
+      font-size: 0.9rem;
+    }
+
+    h2, h3 {
+      color: var(--htext2-color);
+      background-color: var(--htext2-bgcolor);
+      padding: 4px 4px 4px 16px;
+      margin: 0;
+    }
+
+    a {
+      color: var(--link-color);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .section {
+      background-color: var(--section-bg);
+      padding: 0;
+      margin-bottom: 40px;
+      border-radius: var(--border-radius);
+      width: calc(100% - 340px);
+      min-width: calc(100% - 340px);
+      max-width: calc(100% - 340px);
+    }
+
+    .subsection {
+      background-color: var(--subsection-bg);
+      border: 1px solid var(--subsection-border);
+      padding: 8px;
+      margin: 0 0 2px 0;
+      border-radius: var(--border-radius);
+      min-width: 400px;
+    }
+
+    .command {
+      margin: 10px 0;
+      padding: 6px;
+      word-break: break-word;
+      min-width: 200px;
+      overflow: hidden;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      border: 1px solid var(--input-border);
+      padding: 6px 8px;
+      border-radius: var(--border-radius);
+      width: 200px;
+      min-width: 200px;
+    }
+
+    textarea {
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      border: 1px solid var(--input-border);
+      padding: 6px 8px;
+      border-radius: var(--border-radius);
+      min-width: 200px;
+      width: calc(100% - 20px);
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    
+    .info {
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      padding: 6px 8px;
+      width: calc(100% - 270px);
+      box-sizing: border-box;
+      resize: vertical;
+      min-width: 200px;
+      font-size: 75%;
+    }
+
+    select {
+      width: 200px;
+      box-sizing: border-box;
+      resize: vertical;
+      min-width: 200px;
+      max-width: 200px;
+    }
+
+    textarea {
+      min-height: 200px;
+    }
+
+    input[type="checkbox"] {
+      vertical-align: middle;
+      margin-left: 8px;
+      margin-right: 4px;
+      transform: scale(1.2);
+    }
+
+    label {
+      color: var(--text-color);
+      margin-right: 8px;
+      vertical-align: middle;
+      width: 150px;
+      min-width: 150px;
+      max-width: 150px;
+      overflow: hidden;
+      white-space: nowrap;
+      display: inline-block;
+    }
+    label.long_text {
+      width: auto;
+      min-width: auto;
+      max-width: 200px;
+    }
+
+    button {
+      background-color: var(--button-bg);
+      color: #fff;
+      border: none;
+      border-radius: var(--border-radius);
+      padding: 6px 12px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 8px;
+    }
+    button:hover {
+      background-color: var(--button-hover);
+    }
+
+    #creditsList li {
+      margin-top: 5px;
+    }
+
+    .ui {
+      max-width: calc(100% - 270px);
+      display: inline-block;
+      width: calc(100% - 270px);
+      min-width: 300px;
+      padding: 4px;
+    }
+
+    @media (max-width: 450px) {
+      #consoleLog {
+        display: none;
+      }
+    }
+
+    .ui_group {
+      white-space: nowrap;
+      margin: 2px;
+      display: inline-block;
+      background-color: rgba(0, 0, 0, .25);
+    }
+    .narrowInput {
+      width: 150px !important;
+    }
+
+    #consoleLog {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 320px;
+      height: 100vh;
+      font-size: 12px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--console-bg);
+      color: var(--console-text);
+      border-left: 1px solid var(--console-border);
+      overflow: hidden;
+    }
+
+    #tocHeader {
+      flex-shrink: 0;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    #tocList {
+      list-style: none;
+      padding-left: 0;
+      margin-top: 0;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+
+    #logEntries {
+      overflow-y: auto;
+      flex-grow: 1;
+      border-top: 1px solid #444;
+      padding-top: 6px;
+    }
+
+    #tocList li {
+      margin: 4px 0;
+      line-height: 1.3;
+    }
+
+    #tocList a {
+      color: var(--toc-list-color);
+      text-decoration: none;
+    }
+    #tocList a:hover {
+      text-decoration: underline;
+    }
+
+    /*********************************************
+     * ここからテーマ切り替え用のクラス定義
+     *********************************************/
+    /* ---------- .theme-light ---------- */
+    .theme-light {
+      --bg-color: #ffffff;
+      --text-color: #1e1e1e;
+      --htext-color: #335;
+      --htext-bgcolor: rgba(255, 255, 255, .55);
+      --htext2-color: #335;
+      --htext2-bgcolor: rgba(0, 64, 0, .25);
+      --section-bg: #f0f0f0;
+      --subsection-bg: #ffffff;
+      --subsection-border: #ccc;
+      --input-bg: #ffffff;
+      --input-border: #888;
+      --link-color: #00f;
+      --button-bg: #007acc;
+      --button-hover: #005f9e;
+      --console-bg: rgba(240, 240, 240, 0.95);
+      --console-text: #333;
+      --console-border: #ccc;
+      --toc-list-color:#00f;
+    }
+    
+    /* ---------- .theme-dark ---------- */
+    .theme-dark {
+      --bg-color: #1e1e1e;
+      --text-color: #d4d4d4;
+      --htext-color: #c98;
+      --htext-bgcolor: rgba(0, 0, 32, .5);
+      --htext2-color: #c98;
+      --htext2-bgcolor: rgba(0, 0, 0, .25);
+      --section-bg: #252526;
+      --subsection-bg: #2d2d30;
+      --subsection-border: #3a3a3a;
+      --input-bg: #3c3c3c;
+      --input-border: #555;
+      --link-color: #3794ff;
+      --button-bg: #0e639c;
+      --button-hover: #1177bb;
+      --console-bg: rgba(0, 0, 0, 0.85);
+      --console-text: #66f;
+      --console-border: #444;
+      --toc-list-color:#aaf;
+    }
+
+    /* ---------- .theme-cyberdark ---------- */
+    .theme-cyberdark {
+      --bg-color: #1e1e1e;
+      --text-color: #d4d4d4;
+      --htext-color: #0af; 
+      --htext-bgcolor: rgba(0, 32, 32, .5);
+      --htext2-color: #0af;
+      --htext2-bgcolor: rgba(0, 0, 0, .25);
+      --section-bg: #252526;
+      --subsection-bg: #2d2d30;
+      --subsection-border: #3a3a3a;
+      --input-bg: #3c3c3c;
+      --input-border: #555;
+      --link-color: #0af;
+      --button-bg: #0e639c;
+      --button-hover: #1177bb;
+      --console-bg: rgba(0, 0, 0, 0.85);
+      --console-text: #66f;
+      --console-border: #444;
+      --toc-list-color:#aaf;
+    }
+    /* サイバーダークの追加演出 */
+    .theme-cyberdark .section {
+      border: 1px solid #0ff !important;
+      box-shadow: 0 0 10px rgba(0, 255, 255, 0.4),
+                  0 0 20px rgba(0, 255, 255, 0.2);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .theme-cyberdark .section:hover {
+      transform: scale(1.01);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.7),
+                  0 0 40px rgba(0, 255, 255, 0.3);
+    }
+    .theme-cyberdark button {
+      box-shadow: 0 0 5px #0ff;
+      transition: box-shadow 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
+    }
+    .theme-cyberdark button:hover {
+      background-color: var(--button-hover);
+      box-shadow: 0 0 15px #0ff;
+      transform: scale(1.05);
+    }
+    .theme-cyberdark .ui_group {
+      box-shadow: 1px 1px 1px rgba(255, 255, 255, .5),
+                  -1px 1px 1px rgba(0, 0, 0, .5);
+    }
+    /* いちおう背景アニメかけたいならこういうのも */
+    .theme-cyberdark body .section,
+    .theme-cyberdark h1,
+    .theme-cyberdark h2,
+    .theme-cyberdark textarea{
+      background: linear-gradient(-45deg, #1c1c1c, #2e2e2e, #111111, #232323);
+      background-size: 400% 400%;
+      animation: backgroundMove 20s ease infinite;
+    }
+    @keyframes backgroundMove {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .theme-light .subsection{
+      background-image: url("gvah_w.png");
+    }
+    .theme-dark .subsection,
+    .theme-cyberdark .subsection{
+      background-image: url("gvah.png");
+    }
+    /*
+    .theme-cyberdark textarea{
+      background-image: url("tex_bg3.png");
+    }
+    .theme-light textarea{
+      background-image: url("tex_bg2.png");
+    }
+    */
+  </style>
+</head>
+
+<body onload="initI18nAndApply()"> <!-- Call i18n-loader on page load -->
+  <h1 data-locale="title.main">General VRM Agent Host</h1>
+  <div class="main">
+    <select id="themeSelect">
+      <option value="auto" selected>Auto (System)</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+      <option value="cyberdark">Cyber Dark</option>
+    </select>
+    <!-- 1) Load and display VRM(VRoid) -->
+    <div id="vrmSection" class="section">
+      <h2 data-locale="section.vrm.title">Load and display VRM(VRoid)</h2>
+      <div class="subsection set-command">
+        <h3 data-locale="section.vrm.sub.title">Load VRM file (SET)</h3>
+        <div class="command">
+          <a id="vrmCmdLink" href="/?target=vrm&cmd=load&file=sample01.vrm" target="_blank">
+            /?target=vrm&cmd=load&file=sample01.vrm
+          </a>
+          <button id="vrmBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+          <button class="refreshPulldownBtn" data-locale-value="btn.refresh">Refresh</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="vrmFileSelect" data-locale="label.vrmfile">VRM file:</label>
+            <select id="vrmFileSelect" data-target="vrmCmdLink" data-param="file">
+              <option value="">Select after getstatus</option>
+            </select>
+          </div>
+        </div>
+        <textarea id="vrmResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+      </div>
+    </div>
+
+    <div id="cameraSection" class="section">
+      <h2 data-locale="section.camera.title">Camera Control</h2>
+
+      <!-- 1. Toggle Orthographic Mode -->
+      <div class="subsection set-command">
+        <h3 data-locale="camera.ortho.title">Toggle Orthographic Mode (SET)</h3>
+        <div class="command">
+          <a id="camOrthoEnableLink" href="/?target=camera&cmd=orthographic&enable=true" target="_blank">
+            /?target=camera&cmd=orthographic&enable=true
+          </a>
+          <button id="camOrthoEnableBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label class="long_text" for="camOrthoChk" data-locale="label.orthoMode">Orthographic Mode:</label>
+            <input type="checkbox" id="camOrthoChk" data-target="camOrthoEnableLink" data-param="enable" />
+          </div>
+        </div>
+        <div>
+          <textarea id="camOrthoEnableResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- 2. Set Orthographic Size -->
+      <div class="subsection set-command">
+        <h3 data-locale="camera.size.title">Set Orthographic Size (SET)</h3>
+        <div class="command">
+          <a id="camOrthoSizeLink" href="/?target=camera&cmd=orthographic&size=0.4" target="_blank">
+            /?target=camera&cmd=orthographic&size=0.4
+          </a>
+          <button id="camOrthoSizeBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="camOrthoSize" data-locale="label.orthoSize">Size:</label>
+            <input type="number" step="0.1" id="camOrthoSize" data-target="camOrthoSizeLink" data-param="size"
+              value="0.4" style="width: 80px;" />
+          </div>
+        </div>
+        <div>
+          <textarea id="camOrthoSizeResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- 3. Camera auto adjust (adjust) -->
+      <div class="subsection set-command">
+        <h3>Camera auto adjust (adjust) (SET)</h3>
+        <div class="command">
+          <a id="camAdjustLink" href="/?target=camera&cmd=adjust" target="_blank">
+            /?target=camera&cmd=adjust
+          </a>
+          <button id="camAdjustBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="camAdjustResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2) Audio Reactive Lip Sync (Volume-Based Animation) -->
+    <div class="section">
+      <h2 data-locale="section.lipsync.title">Audio Reactive Lip Sync (Volume-Based Animation)</h2>
+      <!-- 2-1) getstatus (GET) -->
+      <div class="subsection get-command">
+        <h3 data-locale="lipsync.getstatus">Get Lip Sync status (GET)</h3>
+        <div class="command">
+          <a id="lipSyncGetStatusLink" href="/?target=lipSync&cmd=getstatus" target="_blank"
+            data-target-pulldown="lipSyncChannelSelect">
+            /?target=lipSync&cmd=getstatus
+          </a>
+          <button id="lipSyncGetStatusBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="lipSyncGetStatusResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+      <!-- 2-2) Lip Sync ON (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="lipsync.on.title">Audio Reactive Lip Sync ON (SET)</h3>
+        <div class="command">
+          <a id="lipSyncOnLink" href="/?target=lipSync&cmd=audiosync_on&channel=1" target="_blank">
+            /?target=lipSync&cmd=audiosync_on&channel=1
+          </a>
+          <button id="lipSyncOnBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <label for="lipSyncChannelSelect" data-locale="label.channel">Channel:</label>
+          <select id="lipSyncChannelSelect" data-target="lipSyncOnLink" data-param="channel">
+            <option value="1">Select after getstatus</option>
+          </select>
+        </div>
+        <div class="ui">
+          <label for="lipSyncScaleInput" data-locale="label.scale">Scale:</label>
+          <input type="number" step="10" id="lipSyncScaleInput" data-target="lipSyncOnLink" data-param="scale"
+            value="10">
+        </div>
+        <div>
+          <textarea id="lipSyncOnResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+      <!-- 2-3) Lip Sync OFF (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="lipsync.off.title">Audio Reactive Lip Sync OFF (SET)</h3>
+        <div class="command">
+          <a id="lipSyncOffLink" href="/?target=lipSync&cmd=audiosync_off" target="_blank">
+            /?target=lipSync&cmd=audiosync_off
+          </a>
+          <button id="lipSyncOffBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="lipSyncOffResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3) VRMAnimation: Load and play -->
+    <div id="vrmAnimSection" class="section">
+      <h2 data-locale="section.vrma.title">VRMAnimation: Load and play</h2>
+      <div class="subsection set-command">
+        <h3 data-locale="vrma.play.title">Play VRMA file (SET)</h3>
+        <div class="command">
+          <a id="vrmaCmdLink" href="/?target=animation&cmd=play&file=VRMA_01.vrma&continue=false" target="_blank">
+            /?target=animation&cmd=play&file=VRMA_01.vrma&continue=false
+          </a>
+          <button id="vrmaBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="vrmaFileSelect" data-locale="label.vrmafile">VRMA file:</label>
+            <select id="vrmaFileSelect" data-target="vrmaCmdLink" data-param="file">
+              <option value="">Select after getstatus</option>
+            </select>
+          </div>
+          <div class="ui_group">
+            <input type="checkbox" id="vrmaContinueCheck" data-target="vrmaCmdLink" data-param="continue" />
+            <label for="vrmaContinueCheck">continue</label>
+          </div>
+        </div>
+        <textarea id="vrmaResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+      </div>
+    </div>
+
+    <!-- 4) Animation using Anime Girl Idle Animation -->
+    <div class="section">
+      <h2 data-locale="section.anim.title">Animation using Anime Girl Idle Animation</h2>
+      <!-- 4-1) getstatus (GET) -->
+      <div class="subsection get-command">
+        <h3 data-locale="anim.list.title">Get animation list/status (GET)</h3>
+        <div class="command">
+          <a id="animationGetStatusLink" href="/?target=animation&cmd=getstatus" target="_blank"
+            data-target-pulldown="animationPlaySelect">
+            /?target=animation&cmd=getstatus
+          </a>
+          <button id="animationGetStatusBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+          <!--
+          <button class="refreshPulldownBtn" data-locale-value="btn.refresh">Refresh</button>
+          -->
+        </div>
+        <div class="command">
+          <a id="animationGetStatusLink2" href="/?target=animation&cmd=getstatus&opt=alias" target="_blank"
+            data-target-pulldown="animationPlaySelect">
+            /?target=animation&cmd=getstatus&opt=alias
+          </a>
+          <button id="animationGetStatusBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="animationGetStatusResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+      <!-- 4-2) play (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="anim.play.title">Play animation (play) (SET)</h3>
+        <div class="command">
+          <a id="animationPlayLink" href="/?target=animation&cmd=play&id=Idle_Generic_01" target="_blank">
+            /?target=animation&cmd=play&id=Idle_Generic_01
+          </a>
+          <button id="animationPlayBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <label for="animationPlaySelect" data-locale="label.animationID">Animation ID:</label>
+          <select id="animationPlaySelect" data-target="animationPlayLink" data-param="id">
+            <option value="">Select after getstatus</option>
+          </select>
+          <input type="checkbox" id="animationPlaySeamless" data-target="animationPlayLink" data-param="seamless" />
+          <label for="animationPlaySeamless">seamless</label>
+        </div>
+        <div>
+          <textarea id="animationPlayResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+      <!-- 4-3) stop / resume (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="anim.stop.title">Stop / Resume (SET)</h3>
+        <div class="command">
+          <a id="animationStopLink" href="/?target=animation&cmd=stop" target="_blank">
+            /?target=animation&cmd=stop
+          </a>
+          <button id="animationStopBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="command">
+          <a id="animationResumeLink" href="/?target=animation&cmd=resume" target="_blank">
+            /?target=animation&cmd=resume
+          </a>
+          <button id="animationResumeBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="animationStopResumeResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5) VRoid Standard Blend Shapes -->
+    <div class="section">
+      <h2 data-locale="section.blend.title">VRoid Standard Blend Shapes</h2>
+      <div class="subsection set-command">
+        <h3 data-locale="blend.apply.title">Apply Expression (shape) (SET)</h3>
+        <div class="command">
+          <a id="shapeStandardLink" href="/?target=animation&cmd=shape&word=Happy&seamless=y" target="_blank">
+            /?target=animation&cmd=shape&word=Happy&seamless=y
+          </a>
+          <button id="shapeStandardBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <!-- RESET link -->
+        <div class="command">
+          <a id="shapeStandardResetLink" href="/?target=animation&cmd=shape&word=reset&seamless=y" target="_blank">
+            /?target=animation&cmd=shape&word=reset&seamless=y
+          </a>
+          <button id="shapeStandardResetBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <label for="shapeStandardSelect" data-locale="label.blendShape">Expression preset:</label>
+          <select id="shapeStandardSelect" data-target="shapeStandardLink" data-param="word">
+            <option value="Happy">Happy</option>
+            <option value="Angry">Angry</option>
+            <option value="Sad">Sad</option>
+            <option value="Surprised">Surprised</option>
+            <option value="Relaxed">Relaxed</option>
+            <option value="reset">reset</option>
+          </select>
+          <input type="checkbox" id="shapeStandardSeamless" data-target="shapeStandardLink" data-param="seamless"
+            checked />
+          <label for="shapeStandardSeamless">seamless</label>
+        </div>
+        <div>
+          <textarea id="shapeStandardResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- 7) VRoid LipSync-specific blend shapes (Shape cmd) -->
+      <div class="subsection set-command">
+        <h3>Mouth shape (shape) (SET)</h3>
+        <div class="info" data-locale="placeholder.lipsync">
+          Audio Reactive Lip Sync uses "Aa", so if it's active, "Aa" might not be applied. Please disable it first if
+          needed.
+        </div>
+        <div class="command">
+          <a id="lipSyncShape2Link" href="/?target=animation&cmd=shape&word=Aa&seamless=y" target="_blank">
+            /?target=animation&cmd=shape&word=Aa&seamless=y
+          </a>
+          <button id="lipSyncShape2Btn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <label for="lipSyncShape2Select">Shape word:</label>
+          <select id="lipSyncShape2Select" data-target="lipSyncShape2Link" data-param="word">
+            <option value="Aa">Aa</option>
+            <option value="Ih">Ih</option>
+            <option value="Ou">Ou</option>
+            <option value="Ee">Ee</option>
+            <option value="Oh">Oh</option>
+            <option value="reset">reset</option>
+          </select>
+          <input type="checkbox" id="lipSyncShape2Seamless" data-target="lipSyncShape2Link" data-param="seamless"
+            checked />
+          <label for="lipSyncShape2Seamless">seamless</label>
+        </div>
+        <div>
+          <textarea id="lipSyncShape2Result" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- 6) VRoid LipSync-specific blend shapes (Mouth cmd) -->
+      <div class="subsection set-command">
+        <h3>Mouth shape (mouth aliases) (SET)</h3>
+        <div class="info">These aliases correspond to Aa, Ih, Ou, Ee, Oh.</div>
+        <div class="command">
+          <a id="lipSyncShapeLink" href="/?target=animation&cmd=mouth&word=A" target="_blank">
+            /?target=animation&cmd=mouth&word=A
+          </a>
+          <button id="lipSyncShapeBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <label for="lipSyncShapeSelect">Mouth Shape:</label>
+          <select id="lipSyncShapeSelect" data-target="lipSyncShapeLink" data-param="word">
+            <option value="A">A</option>
+            <option value="I">I</option>
+            <option value="U">U</option>
+            <option value="E">E</option>
+            <option value="O">O</option>
+            <option value="RESET">RESET</option>
+          </select>
+          <input type="checkbox" id="lipSyncShapeSeamless" data-target="lipSyncShapeLink" data-param="seamless" />
+          <label for="lipSyncShapeSeamless">seamless</label>
+        </div>
+        <div>
+          <textarea id="lipSyncShapeResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8) Blink Control -->
+    <div class="section">
+      <h2 data-locale="section.blink.title">Blink Control</h2>
+      <!-- 8-1) autoBlink (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="blink.autoblink.title">autoBlink (SET)</h3>
+        <div class="command">
+          <a id="autoBlinkOnLink" href="/?target=animation&cmd=autoBlink&enabled=true&freq=1500" target="_blank">
+            /?target=animation&cmd=autoBlink&enabled=true&freq=1500
+          </a>
+          <button id="autoBlinkOnBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="command">
+          <a id="autoBlinkOffLink" href="/?target=animation&cmd=autoBlink&enabled=false" target="_blank">
+            /?target=animation&cmd=autoBlink&enabled=false
+          </a>
+          <button id="autoBlinkOffBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <label for="autoBlinkFreq" data-locale="label.freq">freq (ms):</label>
+          <input type="number" id="autoBlinkFreq" data-target="autoBlinkOnLink" data-param="freq" value="1500"
+            style="width:80px;">
+        </div>
+        <div>
+          <textarea id="autoBlinkResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+      <!-- 8-2) Manually set/reset Blink (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="blink.manual.title">Manually set/reset Blink (SET)</h3>
+        <!-- normal command -->
+        <div class="command">
+          <a id="blinkSetLink" href="/?target=animation&cmd=shape&blink=0.9,0.0" target="_blank">
+            /?target=animation&cmd=shape&blink=0.9,0.0
+          </a>
+          <button id="blinkSetBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <!-- RESET commands -->
+        <div class="command">
+          <a id="blinkResetLink" href="/?target=animation&cmd=shape&blink=reset" target="_blank">
+            /?target=animation&cmd=shape&blink=reset
+          </a>
+          <button id="blinkResetBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="command">
+          <a id="blinkReset2Link" href="/?target=animation&cmd=reset_blink" target="_blank">
+            /?target=animation&cmd=reset_blink
+          </a>
+          <button id="blinkReset2Btn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="blinkLeft" data-locale="label.blinkLeft">BlinkLeft:</label>
+            <input type="number" step="0.1" id="blinkLeft" data-target="blinkSetLink" data-param="blink"
+              data-param-ex="{a,b}:a" value="0.9" style="width:60px;">
+          </div>
+          <div class="ui_group">
+            <label for="blinkRight" data-locale="label.blinkRight">BlinkRight:</label>
+            <input type="number" step="0.1" id="blinkRight" data-target="blinkSetLink" data-param="blink"
+              data-param-ex="{a,b}:b" value="0.0" style="width:60px;">
+          </div>
+        </div>
+        <div>
+          <textarea id="blinkSetResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Avatar Position & Rotation Commands (Test) -->
+    <div class="section">
+      <h2 data-locale="section.loc.title">Avatar Position & Rotation Commands (Test)</h2>
+
+      <!-- Get avatar position (getLoc) (GET) -->
+      <div class="subsection get-command">
+        <h3 data-locale="loc.get.title">Get avatar position (getLoc) (GET)</h3>
+        <div class="command">
+          <a id="vrmGetLocLink" href="/?target=vrm&cmd=getLoc" target="_blank">
+            /?target=vrm&cmd=getLoc
+          </a>
+          <button id="vrmGetLocBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="vrmGetLocResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- Set avatar position (setLoc) (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="loc.set.title">Set avatar position (setLoc) (SET)</h3>
+        <div class="command">
+          <a id="vrmSetLocLink" href="/?target=vrm&cmd=setLoc&xyz=0,0.5,-1" target="_blank">
+            /?target=vrm&cmd=setLoc&xyz=0,0.5,-1
+          </a>
+          <button id="vrmSetLocBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <label for="vrmSetLocInput" data-locale="label.xyz">XYZ:</label>
+          <input type="text" id="vrmSetLocInput" data-target="vrmSetLocLink" data-param="xyz" value="0,0.5,-1" />
+        </div>
+        <div>
+          <textarea id="vrmSetLocResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- Get avatar rotation (getRot) (GET) -->
+      <div class="subsection get-command">
+        <h3 data-locale="rot.get.title">Get avatar rotation (getRot) (GET)</h3>
+        <div class="command">
+          <a id="vrmGetRotLink" href="/?target=vrm&cmd=getRot" target="_blank">
+            /?target=vrm&cmd=getRot
+          </a>
+          <button id="vrmGetRotBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="vrmGetRotResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- Set avatar rotation (setRot) (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="rot.set.title">Set avatar rotation (setRot) (SET)</h3>
+        <div class="command">
+          <a id="vrmSetRotLink" href="/?target=vrm&cmd=setRot&xyz=0,45,0" target="_blank">
+            /?target=vrm&cmd=setRot&xyz=0,45,0
+          </a>
+          <button id="vrmSetRotBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <label for="vrmSetRotInput" data-locale="label.xyz">XYZ:</label>
+          <input type="text" id="vrmSetRotInput" data-target="vrmSetRotLink" data-param="xyz" value="0,45,0" />
+        </div>
+        <div>
+          <textarea id="vrmSetRotResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Continuous move & rotate commands (Test) -->
+    <div class="section">
+      <h2 data-locale="section.move.title">Continuous Move / Rotate Commands (Test)</h2>
+
+      <!-- Move (from) -->
+      <div class="subsection set-command">
+        <h3 data-locale="move.from.title">Continuous move (move) - with 'from' (SET)</h3>
+        <div class="info" data-locale="info.move">
+          The "duration" unit is msec (1000 = 1 second). "delta" splits movement into segments to define speed
+          distribution.
+        </div>
+        <div class="command">
+          <a id="vrmMoveFromLink" href="/?target=vrm&cmd=move&from=-1,0,0&to=1,0,0&duration=1000&delta=20,60,20"
+            target="_blank">
+            /?target=vrm&cmd=move&from=-1,0,0&to=1,0,0&duration=1000&delta=20,60,20
+          </a>
+          <button id="vrmMoveFromBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="vrmMoveFromInput" data-locale="label.from">From:</label>
+            <input type="text" id="vrmMoveFromInput" data-target="vrmMoveFromLink" data-param="from" value="-1,0,0"
+              class="narrowInput" />
+          </div>
+          <div class="ui_group">
+            <label for="vrmMoveToInput" data-locale="label.to">To:</label>
+            <input type="text" id="vrmMoveToInput" data-target="vrmMoveFromLink" data-param="to" value="1,0,0"
+              class="narrowInput" />
+          </div>
+          <br />
+          <div class="ui_group">
+            <label for="vrmMoveDurationInput" data-locale="label.duration">Duration:</label>
+            <input type="number" id="vrmMoveDurationInput" data-target="vrmMoveFromLink" data-param="duration"
+              value="1000" class="narrowInput" />
+          </div>
+          <div class="ui_group">
+            <label for="vrmMoveDeltaInput" data-locale="label.delta">Delta:</label>
+            <input type="text" id="vrmMoveDeltaInput" data-target="vrmMoveFromLink" data-param="delta" value="20,60,20"
+              class="narrowInput" />
+          </div>
+        </div>
+        <div>
+          <textarea id="vrmMoveFromResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- Move (no from) -->
+      <div class="subsection set-command">
+        <h3 data-locale="move.noFrom.title">Continuous move (move) - no 'from' (SET)</h3>
+        <div class="command">
+          <a id="vrmMoveLink" href="/?target=vrm&cmd=move&to=0,0,0&duration=1000&delta=20,60,20" target="_blank">
+            /?target=vrm&cmd=move&to=0,0,0&duration=1000&delta=20,60,20
+          </a>
+          <button id="vrmMoveBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="vrmMoveToInput2" data-locale="label.to">To:</label>
+            <input type="text" id="vrmMoveToInput2" data-target="vrmMoveLink" data-param="to" value="0,0,0"
+              class="narrowInput" />
+          </div>
+          <br />
+          <div class="ui_group">
+            <label for="vrmMoveDurationInput2" data-locale="label.duration">Duration:</label>
+            <input type="number" id="vrmMoveDurationInput2" data-target="vrmMoveLink" data-param="duration" value="1000"
+              class="narrowInput" />
+          </div>
+          <div class="ui_group">
+            <label for="vrmMoveDeltaInput2" data-locale="label.delta">Delta:</label>
+            <input type="text" id="vrmMoveDeltaInput2" data-target="vrmMoveLink" data-param="delta" value="20,60,20"
+              class="narrowInput" />
+          </div>
+        </div>
+        <div>
+          <textarea id="vrmMoveResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- Rotate (from) -->
+      <div class="subsection set-command">
+        <h3 data-locale="rotate.from.title">Continuous rotate (rotate) - with 'from' (SET)</h3>
+        <div class="command">
+          <a id="vrmRotateFromLink" href="/?target=vrm&cmd=rotate&from=0,-45,0&to=0,45,0&duration=1000&delta=20,60,20"
+            target="_blank">
+            /?target=vrm&cmd=rotate&from=0,-45,0&to=0,45,0&duration=1000&delta=20,60,20
+          </a>
+          <button id="vrmRotateFromBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="vrmRotateFromInput" data-locale="label.from">From:</label>
+            <input type="text" id="vrmRotateFromInput" data-target="vrmRotateFromLink" data-param="from" value="0,-45,0"
+              class="narrowInput" />
+          </div>
+          <div class="ui_group">
+            <label for="vrmRotateToInput" data-locale="label.to">To:</label>
+            <input type="text" id="vrmRotateToInput" data-target="vrmRotateFromLink" data-param="to" value="0,45,0"
+              class="narrowInput" />
+          </div>
+          <br />
+          <div class="ui_group">
+            <label for="vrmRotateDurationInput" data-locale="label.duration">Duration:</label>
+            <input type="number" id="vrmRotateDurationInput" data-target="vrmRotateFromLink" data-param="duration"
+              value="1000" class="narrowInput" />
+          </div>
+          <div class="ui_group">
+            <label for="vrmRotateDeltaInput" data-locale="label.delta">Delta:</label>
+            <input type="text" id="vrmRotateDeltaInput" data-target="vrmRotateFromLink" data-param="delta"
+              value="20,60,20" class="narrowInput" />
+          </div>
+        </div>
+        <div>
+          <textarea id="vrmRotateFromResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- Rotate (no from) -->
+      <div class="subsection set-command">
+        <h3 data-locale="rotate.noFrom.title">Continuous rotate (rotate) - no 'from' (SET)</h3>
+        <div class="command">
+          <a id="vrmRotateLink" href="/?target=vrm&cmd=rotate&to=0,0,0&duration=1000&delta=20,60,20" target="_blank">
+            /?target=vrm&cmd=rotate&to=0,0,0&duration=1000&delta=20,60,20
+          </a>
+          <button id="vrmRotateBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="vrmRotateToInput2" data-locale="label.to">To:</label>
+            <input type="text" id="vrmRotateToInput2" data-target="vrmRotateLink" data-param="to" value="0,0,0"
+              class="narrowInput" />
+          </div>
+          <br />
+          <div class="ui_group">
+            <label for="vrmRotateDurationInput2" data-locale="label.duration">Duration:</label>
+            <input type="number" id="vrmRotateDurationInput2" data-target="vrmRotateLink" data-param="duration"
+              value="1000" class="narrowInput" />
+          </div>
+          <div class="ui_group">
+            <label for="vrmRotateDeltaInput2" data-locale="label.delta">Delta:</label>
+            <input type="text" id="vrmRotateDeltaInput2" data-target="vrmRotateLink" data-param="delta" value="20,60,20"
+              class="narrowInput" />
+          </div>
+        </div>
+        <div>
+          <textarea id="vrmRotateResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- 5. Stop move -->
+      <div class="subsection set-command">
+        <h3 data-locale="move.stop.title">Stop move (stop_move) (SET)</h3>
+        <div class="command">
+          <a id="vrmStopMoveLink" href="/?target=vrm&cmd=stop_move" target="_blank">
+            /?target=vrm&cmd=stop_move
+          </a>
+          <button id="vrmStopMoveBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="vrmStopMoveResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- 6. Stop rotate -->
+      <div class="subsection set-command">
+        <h3 data-locale="rotate.stop.title">Stop rotate (stop_rotate) (SET)</h3>
+        <div class="command">
+          <a id="vrmStopRotateLink" href="/?target=vrm&cmd=stop_rotate" target="_blank">
+            /?target=vrm&cmd=stop_rotate
+          </a>
+          <button id="vrmStopRotateBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="vrmStopRotateResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9) Background image commands -->
+    <div id="backgroundSection" class="section">
+      <h2 data-locale="section.bg.title">Background Image</h2>
+      <div class="subsection set-command">
+        <h3 data-locale="bg.switch.title">Switch background image (SET)</h3>
+        <div class="command">
+          <a id="bgCmdLink" href="/?target=background&cmd=load&file=sample01.png" target="_blank">
+            /?target=background&cmd=load&file=sample01.png
+          </a>
+          <button id="bgBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+          <button class="refreshPulldownBtn" data-locale-value="btn.refresh">Refresh</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="bgFileSelect" data-locale="label.bgFile">Image file name:</label>
+            <select id="bgFileSelect" data-target="bgCmdLink" data-param="file">
+              <option value="">Select after getstatus</option>
+            </select>
+          </div>
+        </div>
+        <textarea id="bgResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+      </div>
+    </div>
+
+    <!-- 9-B) Background color test section -->
+    <div class="section">
+      <h2 data-locale="section.bg.fill">Background color fill (test)</h2>
+
+      <div class="subsection set-command">
+        <h3 data-locale="bg.fill.title">Change background color (fill color)</h3>
+
+        <!-- Blue -->
+        <div class="command">
+          <a href="/?target=background&cmd=fill&color=%230000FF"
+            target="_blank">/?target=background&cmd=fill&color=#0000FF</a>
+          <button class="sendButton" data-locale-value="btn.blue">Blue</button>
+        </div>
+        <!-- Blue variant -->
+        <div class="command">
+          <a href="/?target=background&cmd=fill&color=%230000FE"
+            target="_blank">/?target=background&cmd=fill&color=#0000FE</a>
+          <button class="sendButton" data-locale-value="btn.blue">Blue</button>
+        </div>
+
+        <!-- Magenta -->
+        <div class="command">
+          <a href="/?target=background&cmd=fill&color=%23FF00FF"
+            target="_blank">/?target=background&cmd=fill&color=#FF00FF</a>
+          <button class="sendButton" data-locale-value="btn.magenta">Magenta</button>
+        </div>
+
+        <!-- Green -->
+        <div class="command">
+          <a href="/?target=background&cmd=fill&color=%2300FF00"
+            target="_blank">/?target=background&cmd=fill&color=#00FF00</a>
+          <button class="sendButton" data-locale-value="btn.green">Green</button>
+        </div>
+
+        <!-- Black -->
+        <div class="command">
+          <a href="/?target=background&cmd=fill&color=%23000000"
+            target="_blank">/?target=background&cmd=fill&color=#000000</a>
+          <button class="sendButton" data-locale-value="btn.black">Black</button>
+        </div>
+
+        <!-- White -->
+        <div class="command">
+          <a href="/?target=background&cmd=fill&color=%23FFFFFF"
+            target="_blank">/?target=background&cmd=fill&color=#FFFFFF</a>
+          <button class="sendButton" data-locale-value="btn.white">White</button>
+        </div>
+
+        <div>
+          <textarea placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- 10) Server commands -->
+    <div class="section">
+      <h2 data-locale="section.server.title">Server commands</h2>
+      <!-- transparent (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="server.transparent.title">Make window transparent (transparent) (SET)</h3>
+
+        <p data-locale="server.transparent.enable">Enable transparency (with color):</p>
+        <!-- Blue -->
+        <div class="command">
+          <a id="serverTransparentBlueLink" href="/?target=server&cmd=transparent&color=%230000FF&enable=true"
+            target="_blank">
+            /?target=server&cmd=transparent&color=#0000FF&enable=true
+          </a>
+          <button id="serverTransparentBlueBtn" class="sendButton" data-locale-value="btn.blue">Blue</button>
+        </div>
+
+        <!-- Magenta -->
+        <div class="command">
+          <a id="serverTransparentMagentaLink" href="/?target=server&cmd=transparent&color=%23FF00FF&enable=true"
+            target="_blank">
+            /?target=server&cmd=transparent&color=#FF00FF&enable=true
+          </a>
+          <button id="serverTransparentMagentaBtn" class="sendButton" data-locale-value="btn.magenta">Magenta</button>
+        </div>
+
+        <!-- Green -->
+        <div class="command">
+          <a id="serverTransparentGreenLink" href="/?target=server&cmd=transparent&color=%2300FF00&enable=true"
+            target="_blank">
+            /?target=server&cmd=transparent&color=#00FF00&enable=true
+          </a>
+          <button id="serverTransparentGreenBtn" class="sendButton" data-locale-value="btn.green">Green</button>
+        </div>
+
+        <!-- Black -->
+        <div class="command">
+          <a id="serverTransparentBlackLink" href="/?target=server&cmd=transparent&color=%23000000&enable=true"
+            target="_blank">
+            /?target=server&cmd=transparent&color=#000000&enable=true
+          </a>
+          <button id="serverTransparentBlackBtn" class="sendButton" data-locale-value="btn.black">Black</button>
+        </div>
+
+        <!-- White -->
+        <div class="command">
+          <a id="serverTransparentWhiteLink" href="/?target=server&cmd=transparent&color=%23FFFFFF&enable=true"
+            target="_blank">
+            /?target=server&cmd=transparent&color=#FFFFFF&enable=true
+          </a>
+          <button id="serverTransparentWhiteBtn" class="sendButton" data-locale-value="btn.white">White</button>
+        </div>
+
+        <p data-locale="server.transparent.disable">Disable transparency:</p>
+        <!-- Transparent Off -->
+        <div class="command">
+          <a id="serverTransparentOffLink" href="/?target=server&cmd=transparent&enable=false" target="_blank">
+            /?target=server&cmd=transparent&enable=false
+          </a>
+          <button id="serverTransparentOffBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+
+        <div>
+          <textarea id="serverTransparentResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- stayOnTop (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="server.stayon.title">Keep window always on top (stayOnTop) (SET)</h3>
+        <div class="command">
+          <a id="serverStayOnTopOnLink" href="/?target=server&cmd=stayOnTop&enable=true" target="_blank">
+            /?target=server&cmd=stayOnTop&enable=true
+          </a>
+          <button id="serverStayOnTopOnBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="command">
+          <a id="serverStayOnTopOffLink" href="/?target=server&cmd=stayOnTop&enable=false" target="_blank">
+            /?target=server&cmd=stayOnTop&enable=false
+          </a>
+          <button id="serverStayOnTopOffBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="serverStayOnTopResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- allowDragObjects (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="server.drag.title">Allow object drag (allowDragObjects) (SET)</h3>
+        <div class="command">
+          <a id="serverAllowDragObjectsOnLink" href="/?target=server&cmd=allowDragObjects&enable=true" target="_blank">
+            /?target=server&cmd=allowDragObjects&enable=true
+          </a>
+          <button id="serverAllowDragObjectsOnBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="command">
+          <a id="serverAllowDragObjectsOffLink" href="/?target=server&cmd=allowDragObjects&enable=false"
+            target="_blank">
+            /?target=server&cmd=allowDragObjects&enable=false
+          </a>
+          <button id="serverAllowDragObjectsOffBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="serverAllowDragObjectsResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- getstatus (GET) -->
+      <div class="subsection get-command">
+        <h3 data-locale="server.status.title">Get server status (getstatus) (GET)</h3>
+        <div class="command">
+          <a id="serverGetStatusLink" href="/?target=server&cmd=getstatus" target="_blank"
+            data-target-pulldown="vrmFileSelect;vrmaFileSelect;bgFileSelect" data-target-records="vrm,vrma,img">
+            /?target=server&cmd=getstatus
+          </a>
+          <button id="serverGetStatusBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div>
+          <textarea id="serverGetStatusResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+
+      <!-- terminate (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="server.terminate.title">Terminate server (terminate) (SET)</h3>
+        <div class="command">
+          <a id="serverTerminateLink" href="/?target=server&cmd=terminate" target="_blank">
+            /?target=server&cmd=terminate
+          </a>
+          <button id="serverTerminateBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <textarea id="serverTerminateResult" placeholder="Result"
+            data-locale-placeholder="placeholder.result"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 11) Credits -->
+    <div class="section">
+      <h2 data-locale="section.credits.title">Credits</h2>
+      <div class="subsection">
+        <h3 data-locale="credits.license.title">License Information</h3>
+        <ul id="creditsList">
+          <li data-locale="placeholder.logs">Loading credits info...</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <!-- Log area on top-right -->
+  <div id="consoleLog">
+    <div id="tocHeader">
+      <strong data-locale="toc.title">Table of Contents</strong>
+    </div>
+    <ul id="tocList"></ul>
+    <hr />
+    <div id="logEntries"></div>
+  </div>
+
+  <script>
+    // A simple function to log messages in #logEntries
+    function logToConsole(msg) {
+      const logArea = document.getElementById('logEntries');
+      const now = new Date().toLocaleTimeString();
+
+      const match = msg.match(/(https?:\/\/[^\s]+)(?=\s|$)/);
+      const url = match ? match[1] : null;
+
+      const div = document.createElement('div');
+
+      const timeSpan = document.createElement('span');
+      timeSpan.textContent = `[${now}] `;
+      div.appendChild(timeSpan);
+
+      if (url) {
+        const link = document.createElement('span');
+        link.textContent = url;
+        link.style.cursor = 'pointer';
+        link.style.color = '#0af';
+        link.style.textDecoration = 'underline';
+        link.dataset.url = url;
+
+        link.addEventListener('click', async function (e) {
+          const actualUrl = e.currentTarget.dataset.url;
+          try {
+            const resp = await fetch(actualUrl);
+            const json = await resp.json();
+            //alert(`Command Result:\n${JSON.stringify(json, null, 2)}`);
+          } catch (err) {
+            //alert(`Error re-sending:\n${err}`);
+            console.error(err);
+          }
+        });
+
+        div.appendChild(link);
+
+        const tailText = msg.substring(match.index + match[0].length);
+        if (tailText) {
+          const span = document.createElement('span');
+          span.textContent = tailText;
+          div.appendChild(span);
+        }
+      } else {
+        div.textContent += msg;
+      }
+
+      logArea.appendChild(div);
+      logArea.scrollTop = logArea.scrollHeight;
+    }
+
+
+
+
+
+    // Helper to update the displayed link text (remove "http://host" part)
+    function updateLinkText(anchor) {
+      let href = anchor.href;
+      const idx = href.indexOf("/?target=");
+      if (idx !== -1) {
+        href = href.substring(idx);
+      }
+      anchor.textContent = decodeURIComponent(href);
+    }
+
+    // Common event handler for "Send" buttons
+    document.querySelectorAll('button.sendButton').forEach(button => {
+      button.addEventListener('click', async function () {
+        const commandElem = this.closest('.command');
+        if (!commandElem) return;
+        const anchor = commandElem.querySelector('a');
+        if (!anchor) return;
+        const url = anchor.href;
+        try {
+          const resp = await fetch(url);
+          const json = await resp.json();
+
+          // Show response in the same subsection's <textarea>
+          const subsection = this.closest('.subsection');
+          if (subsection) {
+            const resultArea = subsection.querySelector('textarea');
+            if (resultArea) {
+              resultArea.value = JSON.stringify(json, null, 2);
+            }
+          }
+          logToConsole(`${url} => OK`);
+
+          // If data-target-pulldown is set, update <select> elements
+          if (anchor.dataset.targetPulldown) {
+            const targetIds = anchor.dataset.targetPulldown.split(";").map(s => s.trim());
+            const recordKeys = anchor.dataset.targetRecords ? anchor.dataset.targetRecords.split(",").map(s => s.trim()) : [];
+
+            targetIds.forEach((targetId, idx) => {
+              if (!targetId) return;
+              const selectElem = document.getElementById(targetId);
+              if (!selectElem) return;
+
+              selectElem.innerHTML = "";
+
+              let keys = null;
+              if (targetId === 'lipSyncChannelSelect') {
+                // special case
+                keys = json.message.availableChannels;
+              } else if (recordKeys[idx]) {
+                // typical: look up e.g. json.message.files["vrm"]
+                keys = json.message.files?.[recordKeys[idx]];
+              } else {
+                keys = json.message.defaultMappingKeys;
+              }
+
+              if (Array.isArray(keys)) {
+                for (let i = 0; i < keys.length; i++) {
+                  const item = keys[i];
+                  const option = document.createElement('option');
+                  if (targetId === 'lipSyncChannelSelect' && typeof item === 'object') {
+                    option.value = item.id;
+                    option.textContent = `${item.id} (${item.name})`;
+                  } else {
+                    option.value = item;
+                    option.textContent = item;
+                  }
+                  selectElem.appendChild(option);
+                }
+              }
+            });
+          }
+
+          updateLinkText(anchor);
+        } catch (err) {
+          const subsection = this.closest('.subsection');
+          if (subsection) {
+            const resultArea = subsection.querySelector('textarea');
+            if (resultArea) {
+              resultArea.value = `Error => ${err}`;
+            }
+          }
+          logToConsole(`${url} => Error: ${err}`);
+        }
+      });
+    });
+
+    // Common listener for elements with data-target and data-param
+    document.querySelectorAll('[data-target][data-param]').forEach(elem => {
+      const eventType = (elem.tagName === 'SELECT' || elem.type === 'checkbox' || elem.type === 'file') ? 'change' : 'input';
+      elem.addEventListener(eventType, function () {
+        const targetId = this.dataset.target;
+        const paramName = this.dataset.param;
+        if (!targetId || !paramName) return;
+        const anchor = document.getElementById(targetId);
+        if (!anchor) return;
+
+        let value = "";
+        const group = document.querySelectorAll(`[data-target="${targetId}"][data-param="${paramName}"]`);
+        if (group.length > 1 && group[0].dataset.paramEx) {
+          // e.g. blink => {a,b} approach
+          const template = group[0].dataset.paramEx.split(':')[0];
+          let map = {};
+          for (let i = 0; i < group.length; i++) {
+            const inp = group[i];
+            if (!inp.dataset.paramEx) continue;
+            const parts = inp.dataset.paramEx.split(':');
+            if (parts.length === 2) {
+              map[parts[1]] = inp.value;
+            }
+          }
+          value = template;
+          for (const key in map) {
+            value = value.replace(new RegExp(`\\b${key}\\b`, "g"), map[key]);
+          }
+          value = value.replace(/[{}]/g, "");
+          value = "{" + value + "}";
+        } else {
+          if (elem.type === 'checkbox') {
+            if (paramName === "seamless") {
+              value = elem.checked ? 'y' : 'n';
+            } else {
+              value = elem.checked ? 'true' : 'false';
+            }
+          } else if (elem.type === 'file') {
+            if (elem.files.length > 0) {
+              value = elem.files[0].name;
+            }
+          } else {
+            value = elem.value;
+          }
+        }
+
+        const urlObj = new URL(anchor.href, window.location.origin);
+        urlObj.searchParams.set(paramName, value);
+        anchor.href = urlObj.pathname + urlObj.search;
+        updateLinkText(anchor);
+      });
+    });
+
+    // Credits loading
+    function loadCredits() {
+      fetch('/?target=credits')
+        .then(response => response.json())
+        .then(data => {
+          let credits = {};
+          try {
+            credits = JSON.parse(data.message);
+          } catch (e) {
+            console.error('Credits parse error:', e);
+            document.getElementById('creditsList').innerHTML = '<li>Error parsing credits info</li>';
+            return;
+          }
+          const creditsList = document.getElementById('creditsList');
+          creditsList.innerHTML = '';
+          for (const key in credits) {
+            if (Object.hasOwnProperty.call(credits, key)) {
+              const credit = credits[key];
+              const li = document.createElement('li');
+              li.innerHTML = `<strong>${credit.name}</strong>: ${credit.license} (<a href="${credit.url}" target="_blank">More Info</a>)`;
+              creditsList.appendChild(li);
+            }
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching credits:', err);
+          document.getElementById('creditsList').innerHTML = '<li>Error loading credits info</li>';
+        });
+    }
+    loadCredits();
+
+    // Table of Contents generation
+    document.addEventListener('DOMContentLoaded', () => {
+
+      // hooking console.log for debug
+      const originalLog = console.log;
+      const logContainer = document.getElementById('logEntries');
+      window.logToConsolePanel = function (msg) {
+        const now = new Date().toLocaleTimeString();
+        const line = document.createElement('div');
+        line.textContent = `[${now}] ${msg}`;
+        logContainer.appendChild(line);
+        logContainer.scrollTop = logContainer.scrollHeight;
+      };
+
+      // show sum of delta
+      document.querySelectorAll('input[data-param="delta"]').forEach(function (input) {
+        const span = document.createElement('span');
+        span.className = "delta-sum";
+        span.style.marginLeft = "8px";
+        input.parentNode.insertBefore(span, input.nextSibling);
+
+        function updateDeltaSum() {
+          const value = input.value;
+          if (!value) {
+            span.textContent = "";
+            return;
+          }
+          const parts = value.split(',');
+          let sum = 0;
+          for (let i = 0; i < parts.length; i++) {
+            const num = parseFloat(parts[i].trim());
+            if (!isNaN(num)) {
+              sum += num;
+            }
+          }
+          span.textContent = sum + "/100";
+        }
+
+        input.addEventListener("input", updateDeltaSum);
+        updateDeltaSum();
+      });
+
+      // "Refresh" button triggers serverGetStatusBtn click
+      document.querySelectorAll('.refreshPulldownBtn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const serverBtn = document.getElementById("serverGetStatusBtn");
+          if (serverBtn) {
+            serverBtn.dispatchEvent(new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            }));
+          }
+        });
+      });
+
+
+      // override console.log => also log to #logEntries
+      console.log = function (...args) {
+        originalLog.apply(console, args);
+        logToConsolePanel(args.join(" "));
+      };
+    });
+
+    /********************************************************
+     * テーマ適用スクリプト
+     ********************************************************/
+     document.addEventListener('DOMContentLoaded', function () {
+      const themeSelect = document.getElementById('themeSelect');
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+      function applyTheme(theme) {
+        console.log('Applying theme:', theme);
+        document.documentElement.classList.remove('theme-light', 'theme-dark', 'theme-cyberdark');
+
+        if (theme === 'light') {
+          document.documentElement.classList.add('theme-light');
+        } else if (theme === 'dark') {
+          document.documentElement.classList.add('theme-dark');
+        } else if (theme === 'cyberdark') {
+          document.documentElement.classList.add('theme-cyberdark');
+        } else {
+          // auto
+          if (mediaQuery.matches) {
+            document.documentElement.classList.add('theme-dark');
+          } else {
+            document.documentElement.classList.add('theme-light');
+          }
+        }
+      }
+
+      // 初期テーマの適用
+      applyTheme(themeSelect.value);
+
+      // セレクト変更でテーマ適用
+      themeSelect.addEventListener('change', function () {
+        applyTheme(this.value);
+      });
+
+      // prefers-color-scheme が変わったときに "auto" のときだけ反映
+      mediaQuery.addEventListener('change', (e) => {
+        if (themeSelect.value === 'auto') {
+          applyTheme('auto');
+        }
+      });
+    });
+   
+
+  </script>
+</body>
+
+</html>

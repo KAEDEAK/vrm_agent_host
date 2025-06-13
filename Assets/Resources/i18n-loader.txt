@@ -1,0 +1,118 @@
+/* CDK-00210: ローカライズ初期化 & テキスト取得  */
+let i18nData = null;
+let currentLangData = null;
+
+/**
+ * 初期化
+ */
+async function initializeLocalization() {
+  try {
+    const resp = await fetch('/localize.json'); // 実際のパスに置き換えてね
+    i18nData = await resp.json();
+
+    // ブラウザ言語チェック
+    let userLang = navigator.language || navigator.userLanguage;
+    let selectedLang = i18nData.data.default || 'en';
+
+    // 日本語?
+    if (userLang.indexOf('ja') !== -1) {
+      selectedLang = 'ja';
+    }
+    // 対象の lang 配列から合致を探す
+    const langs = i18nData.data.langs;
+    for (let i = 0; i < langs.length; i++) {
+      if (langs[i].lang === selectedLang) {
+        currentLangData = langs[i];
+        break;
+      }
+    }
+    // なければ en で代用
+    if (!currentLangData) {
+      for (let i = 0; i < langs.length; i++) {
+        if (langs[i].lang === 'en') {
+          currentLangData = langs[i];
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Localization init failed:', e);
+  }
+}
+
+/**
+ * メッセージを取得
+ * @param {string} msgId - localize.json 内の ID
+ * @returns {string}
+ */
+function getLocalizedText(msgId) {
+  if (!currentLangData) {
+    return 'Localization not loaded.';
+  }
+  const arr = currentLangData.msgs;
+  const found = arr.find(o => o.id === msgId);
+  if (!found) {
+    return `[${msgId}] missing`;
+  }
+  return found.txt;
+}
+
+/**
+ * HTML要素へ反映
+ * data-locale 属性に ID を書いてある要素に対し、テキストを置き換える
+ */
+function applyLocalizationToPage() {
+  document.querySelectorAll('[data-locale]').forEach(elem => {
+    const id = elem.dataset.locale;
+    if (!id) return;
+    const txt = getLocalizedText(id);
+    elem.textContent = txt;
+  });
+
+  // placeholder 用
+  document.querySelectorAll('[data-locale-placeholder]').forEach(elem => {
+    const id = elem.dataset.localePlaceholder;
+    if (!id) return;
+    const txt = getLocalizedText(id);
+    if (elem.tagName === 'TEXTAREA' || elem.tagName === 'INPUT') {
+      elem.placeholder = txt;
+    }
+  });
+
+  // ボタンの value 用
+  document.querySelectorAll('[data-locale-value]').forEach(elem => {
+    const id = elem.dataset.localeValue;
+    if (!id) return;
+    const txt = getLocalizedText(id);
+    if (elem.tagName === 'INPUT') {
+      elem.value = txt;
+    } else if (elem.tagName === 'BUTTON') {
+      elem.textContent = txt;
+    }
+  });
+
+
+  
+}
+
+/**
+ * 全体の呼び出し例
+ */
+async function initI18nAndApply() {
+  await initializeLocalization();
+  applyLocalizationToPage();
+  console.log("Localization applied!");
+      const tocList = document.getElementById('tocList');
+      document.querySelectorAll('h2').forEach((h2, idx) => {
+        const title = h2.textContent.trim();
+        const anchorId = 'section_' + idx;
+        h2.id = anchorId;
+
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = '#' + anchorId;
+        a.textContent = title;
+        li.appendChild(a);
+        tocList.appendChild(li);
+      });  
+}
