@@ -6,6 +6,7 @@ public class LocalImageLoader : MonoBehaviour {
     public Canvas backgroundCanvas; // 背景専用Canvas
     public Image backgroundImage;   // 背景画像を表示するUI Image
     private const string DefaultImageFile = "credits.png"; // 初期背景
+    private VRMLoader vrmLoader;
     // 初期背景画像を読み込む
     private void Start() {
         if (backgroundCanvas == null || backgroundImage == null) {
@@ -28,12 +29,18 @@ public class LocalImageLoader : MonoBehaviour {
         LoadImageToCanvas(UserPaths.GetIMGFilePath(DefaultImageFile));
 
         // VRMLoader の OnVRMLoadComplete イベントに背景調整を登録
-        var vrmLoader = GetComponent<VRMLoader>();
+        vrmLoader = GetComponent<VRMLoader>();
         if (vrmLoader != null) {
             vrmLoader.OnVRMLoadComplete += OnVrmModelLoaded;
         }
         else {
             Debug.LogError(i18nMsg.ERROR_VRMLOADER_NOT_ATTACHED);
+        }
+    }
+
+    private void OnDestroy() {
+        if (vrmLoader != null) {
+            vrmLoader.OnVRMLoadComplete -= OnVrmModelLoaded;
         }
     }
 
@@ -59,6 +66,13 @@ public class LocalImageLoader : MonoBehaviour {
         if (!texture.LoadImage(imageData)) {
             Debug.LogError(string.Format(i18nMsg.ERROR_IMAGE_LOAD_FAILED, fullPath));
             return false;
+        }
+
+        if (backgroundImage.sprite != null) {
+            var oldSprite = backgroundImage.sprite;
+            backgroundImage.sprite = null;
+            if (oldSprite.texture != null) Destroy(oldSprite.texture);
+            Destroy(oldSprite);
         }
 
         // 新しい Sprite を生成して背景画像を更新
