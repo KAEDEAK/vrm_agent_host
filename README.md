@@ -84,3 +84,25 @@ Do not use
 
 `target=multiple&cmd=exec_all` を利用すると 1 リクエストで複数コマンドを順次実行できます。
 例: `?target=multiple&cmd=exec_all&target=vrm&cmd=load&file=model.vrm&target=animation&cmd=play&id=Idle_generic`
+
+## config.json の主な設定項目
+
+`Assets/Resources/default_config.json` の内容や各種 C# スクリプトから確認できる、設定ファイル `config.json` で利用可能な項目の概要を以下に示します。
+
+- **httpPort / httpsPort**: HTTP / HTTPS サーバが待ち受けるポート番号。
+- **useHttp / useHttps**: HTTP・HTTPS をそれぞれ有効にするかどうか。
+- **listenLocalhostOnly**: `true` の場合はローカルホストのみからの接続を受け付ける。
+- **allowedRemoteIPs**: 接続を許可するリモート IP アドレスの一覧。
+- **outputFilters**: `getstatus` のレスポンスから除外するキーを指定するフィルタ。
+- **autoPrepareSeamless**: アニメーションをシームレスに切り替える準備を自動で行うか。
+- **vsync / targetFramerate**: VSync の有無と目標フレームレート。
+- **shadows**: 影の強さやバイアス、解像度などの設定。
+- **lipSync.bandRanges**: リップシンク解析で使用する周波数帯域の定義。
+- **camera**: 正射投影の有無、サイズ、アンチエイリアス設定などカメラに関する項目。
+- **fileControl**: `img` `vrm` `vrma` などのファイル種別ごとの列挙可否設定。
+- **window**: 透過ウィンドウやドラッグの許可、位置サイズ、最前面表示などウィンドウ挙動を制御。
+- **materials / rim / outline**: MToon マテリアルの陰影やリムライト、アウトラインの各種パラメータ。
+- **directionalLightConfig / directionalLightRendering**: ディレクショナルライトの回転やレンダリングレイヤ設定。
+- **animations**: アニメーション ID と論理名のマッピングを上書きするための設定。
+
+これらの値を `config.json` に記述することで、アプリ起動時に各種設定が読み込まれます。
