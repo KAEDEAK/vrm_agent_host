@@ -142,6 +142,13 @@ public class AnimationHandler : MonoBehaviour {
         onAnimationReady += OnAnimationReady;
     }
 
+    private void OnDestroy() {
+        if (vrmLoader != null) {
+            vrmLoader.OnVRMLoadComplete -= OnModelLoaded;
+        }
+        onAnimationReady -= OnAnimationReady;
+    }
+
     // 旧来のメソッド。HTTP 経由での再生は、PlayAnimationByID / PlayAnimationByState を使用する前提。
     public void PlayAnimationByName(string stateName) {
         if (!isInitialized) {

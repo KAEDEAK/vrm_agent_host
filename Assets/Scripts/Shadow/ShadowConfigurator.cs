@@ -76,24 +76,36 @@ public class ShadowConfigurator : MonoBehaviour
     public Camera mainCamera;
 
     private string configPath;
+    private VRMLoader vrmLoader;
+    private ConfigData loadedConfig;
 
     private void Start()
     {
         configPath = UserPaths.ConfigPath;
-        ConfigData config = LoadConfigSettings();
+        loadedConfig = LoadConfigSettings();
 
-        var vrmLoader = GetComponent<VRMLoader>();
+        vrmLoader = GetComponent<VRMLoader>();
         if (vrmLoader != null)
         {
-            vrmLoader.OnVRMLoadComplete += (GameObject vrmModel) =>
-            {
-                ConfigureShadowSettings(vrmModel, config);
-            };
+            vrmLoader.OnVRMLoadComplete += OnVrmModelLoaded;
         }
         else
         {
             Debug.LogError(i18nMsg.ERROR_VRMLOADER_NOT_ATTACHED);
         }
+    }
+
+    private void OnDestroy()
+    {
+        if (vrmLoader != null)
+        {
+            vrmLoader.OnVRMLoadComplete -= OnVrmModelLoaded;
+        }
+    }
+
+    private void OnVrmModelLoaded(GameObject vrmModel)
+    {
+        ConfigureShadowSettings(vrmModel, loadedConfig);
     }
     private ConfigData LoadConfigSettings()
     {

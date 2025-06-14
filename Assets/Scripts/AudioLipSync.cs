@@ -128,6 +128,13 @@ public class AudioLipSync : MonoBehaviour {
         }
     }
 
+    private void OnDestroy() {
+        if (vrmLoader != null) {
+            vrmLoader.OnVRMLoadComplete -= OnModelLoaded;
+        }
+        StopLipSync();
+    }
+
 
 
 
