@@ -63,6 +63,18 @@
       top: 4px;
       font-size: 0.9rem;
     }
+    #languageSelect {
+      position: absolute;
+      right: 200px;
+      top: 4px;
+      font-size: 0.9rem;
+    }
+    #languageLabel {
+      position: absolute;
+      right: 270px;
+      top: 7px;
+      font-size: 0.9rem;
+    }
 
     h2, h3 {
       color: var(--htext2-color);
@@ -404,6 +416,11 @@
       <option value="light">Light</option>
       <option value="dark">Dark</option>
       <option value="cyberdark">Cyber Dark</option>
+    </select>
+    <label for="languageSelect" data-locale="label.language" id="languageLabel">Language:</label>
+    <select id="languageSelect">
+      <option value="en">English</option>
+      <option value="ja">日本語</option>
     </select>
     <!-- 1) Load and display VRM(VRoid) -->
     <div id="vrmSection" class="section">
@@ -1598,7 +1615,7 @@
     /********************************************************
      * テーマ適用スクリプト
      ********************************************************/
-     document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function () {
       const themeSelect = document.getElementById('themeSelect');
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -1634,6 +1651,16 @@
       mediaQuery.addEventListener('change', (e) => {
         if (themeSelect.value === 'auto') {
           applyTheme('auto');
+        }
+      });
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const langSelect = document.getElementById('languageSelect');
+      if (!langSelect) return;
+      langSelect.addEventListener('change', function () {
+        if (window.changeLanguage) {
+          window.changeLanguage(this.value);
         }
       });
     });

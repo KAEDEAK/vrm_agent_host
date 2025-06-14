@@ -1,6 +1,7 @@
 /* CDK-00210: ローカライズ初期化 & テキスト取得  */
 let i18nData = null;
 let currentLangData = null;
+let selectedLang = 'en';
 
 /**
  * 初期化
@@ -9,32 +10,15 @@ async function initializeLocalization() {
   try {
     const resp = await fetch('/localize.json'); // 実際のパスに置き換えてね
     i18nData = await resp.json();
+    const userLang = navigator.language || navigator.userLanguage;
+    const storedLang = localStorage.getItem('selected_language');
+    selectedLang = storedLang || i18nData.data.default || 'en';
 
-    // ブラウザ言語チェック
-    let userLang = navigator.language || navigator.userLanguage;
-    let selectedLang = i18nData.data.default || 'en';
-
-    // 日本語?
-    if (userLang.indexOf('ja') !== -1) {
+    if (!storedLang && userLang.indexOf('ja') !== -1) {
       selectedLang = 'ja';
     }
-    // 対象の lang 配列から合致を探す
-    const langs = i18nData.data.langs;
-    for (let i = 0; i < langs.length; i++) {
-      if (langs[i].lang === selectedLang) {
-        currentLangData = langs[i];
-        break;
-      }
-    }
-    // なければ en で代用
-    if (!currentLangData) {
-      for (let i = 0; i < langs.length; i++) {
-        if (langs[i].lang === 'en') {
-          currentLangData = langs[i];
-          break;
-        }
-      }
-    }
+
+    updateCurrentLangData(selectedLang);
   } catch (e) {
     console.error('Localization init failed:', e);
   }
@@ -95,12 +79,31 @@ function applyLocalizationToPage() {
   
 }
 
+function updateCurrentLangData(lang) {
+  const langs = i18nData.data.langs;
+  currentLangData = langs.find(l => l.lang === lang);
+  if (!currentLangData) {
+    currentLangData = langs.find(l => l.lang === 'en');
+  }
+  selectedLang = lang;
+  localStorage.setItem('selected_language', lang);
+}
+
+function changeLanguage(lang) {
+  updateCurrentLangData(lang);
+  applyLocalizationToPage();
+}
+
 /**
  * 全体の呼び出し例
  */
 async function initI18nAndApply() {
   await initializeLocalization();
   applyLocalizationToPage();
+  const langSelect = document.getElementById('languageSelect');
+  if (langSelect) {
+    langSelect.value = selectedLang;
+  }
   console.log("Localization applied!");
       const tocList = document.getElementById('tocList');
       document.querySelectorAll('h2').forEach((h2, idx) => {
@@ -108,11 +111,13 @@ async function initI18nAndApply() {
         const anchorId = 'section_' + idx;
         h2.id = anchorId;
 
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        a.href = '#' + anchorId;
-        a.textContent = title;
-        li.appendChild(a);
-        tocList.appendChild(li);
-      });  
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '#' + anchorId;
+      a.textContent = title;
+      li.appendChild(a);
+      tocList.appendChild(li);
+    });
 }
+
+window.changeLanguage = changeLanguage;

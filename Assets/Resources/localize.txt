@@ -96,7 +96,8 @@
           { "id": "info.lipsync", "txt": "Audio Reactive Lip Sync uses \"Aa\". If active, \"Aa\" might not be applied. Please disable it first if needed." },
           { "id": "info.move", "txt": "The \"duration\" unit is msec (1000 = 1 second). \"delta\" splits movement into segments for speed distribution." },
           { "id": "server.transparent.enable", "txt": "Enable transparency (with color):" },
-          { "id": "server.transparent.disable", "txt": "Disable transparency:" }
+          { "id": "server.transparent.disable", "txt": "Disable transparency:" },
+          { "id": "label.language", "txt": "Language:" }
         ]
       },
       {
@@ -193,7 +194,8 @@
           { "id": "info.lipsync", "txt": "Audio Reactive Lip Sync は \"Aa\" を使用しています。有効な場合、\"Aa\" が適用されないかもしれません。必要なら先にオフにしてください。" },
           { "id": "info.move", "txt": "duration の単位は msec（1000=1秒）です。delta は移動を複数区間に分割し、それぞれの速度配分を定義します。" },
           { "id": "server.transparent.enable", "txt": "ウィンドウ透明化（色付き）を有効にする:" },
-          { "id": "server.transparent.disable", "txt": "ウィンドウ透明化を無効にする:" }
+          { "id": "server.transparent.disable", "txt": "ウィンドウ透明化を無効にする:" },
+          { "id": "label.language", "txt": "言語：" }
         ]
       }
     ]
