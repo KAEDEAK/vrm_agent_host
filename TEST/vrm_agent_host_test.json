@@ -1,0 +1,113 @@
+{
+  "fileinfo": {
+    "name": "desktopPyLauncher.py",
+    "info": "project data file",
+    "version": "1.1"
+  },
+  "items": [
+    {
+      "type": "launcher",
+      "caption": "generic.bat",
+      "path": "batch\\anm\\generic.bat",
+      "workdir": "batch\\anm",
+      "note": "",
+      "icon": "C:/Windows/System32/imageres.dll",
+      "icon_index": 75,
+      "x": 66.5,
+      "y": 203.0,
+      "z": 0.0,
+      "width": 48,
+      "height": 48,
+      "image_embedded": false
+    },
+    {
+      "caption": "",
+      "text": "COMMAND",
+      "x": 47.0,
+      "y": 71.0,
+      "width": 386,
+      "height": 34,
+      "type": "note",
+      "z": 0.0,
+      "format": "text",
+      "fill_background": true,
+      "bgcolor": "#447",
+      "fontsize": 14,
+      "color": "#dd7",
+      "image_embedded": false
+    },
+    {
+      "type": "launcher",
+      "caption": "test_run",
+      "x": 190.25,
+      "y": 293.5,
+      "is_editable": false,
+      "path": "batch\\test_run.bat",
+      "workdir": "batch",
+      "width": 48,
+      "height": 48,
+      "z": 0.0,
+      "image_embedded": false
+    },
+    {
+      "type": "launcher",
+      "caption": "prepare_avator_01.bat",
+      "path": "batch\\prepare_avator_01.bat",
+      "workdir": "batch",
+      "note": "",
+      "icon": "C:/Windows/System32/imageres.dll",
+      "icon_index": 75,
+      "x": 66.5,
+      "y": 128.5,
+      "z": 0.0,
+      "width": 48,
+      "height": 48,
+      "image_embedded": false
+    },
+    {
+      "type": "launcher",
+      "caption": "Other_wave_hand.bat",
+      "path": "batch\\anm\\Other_wave_hand.bat",
+      "workdir": "batch\\anm",
+      "note": "",
+      "icon": "C:/Windows/System32/imageres.dll",
+      "icon_index": 75,
+      "x": 190.25,
+      "y": 203.0,
+      "z": 0.0,
+      "width": 48,
+      "height": 48,
+      "image_embedded": false
+    },
+    {
+      "type": "launcher",
+      "caption": "Idle_Classy_01.bat",
+      "path": "batch\\anm\\Idle_Classy_01.bat",
+      "workdir": "batch\\anm",
+      "note": "",
+      "icon": "C:/Windows/System32/imageres.dll",
+      "icon_index": 75,
+      "x": 190.25,
+      "y": 128.5,
+      "z": 0.0,
+      "width": 48,
+      "height": 48,
+      "image_embedded": false
+    },
+    {
+      "type": "launcher",
+      "caption": "Idle_energetic_02.bat",
+      "path": "batch\\anm\\Idle_energetic_02.bat",
+      "workdir": "batch\\anm",
+      "note": "",
+      "icon": "C:/Windows/System32/imageres.dll",
+      "icon_index": 75,
+      "x": 66.5,
+      "y": 293.5,
+      "z": 0.0,
+      "width": 48,
+      "height": 48,
+      "image_embedded": false
+    }
+  ]
+}
