@@ -32,7 +32,8 @@ Do not use
 | cmd | 概要 | 例 |
 | --- | --- | --- |
 | `load` | 画像を背景に設定 | `?target=background&cmd=load&file=bg.png` |
-| `fill` | 単色で背景を塗りつぶす | `?target=background&cmd=fill&color=#FF0000` |
+| `fill` | 単色で背景を塗りつぶす | `?target=background&cmd=fill&color=FF0000` |
+色指定は `color=RRGGBB` 形式が基本です。`#RRGGBB` も受け付けます。
 
 #### `animation`
 
@@ -63,7 +64,11 @@ Do not use
 
 | cmd | 概要 | 例 |
 | --- | --- | --- |
-| `transparent` | 透過ウィンドウ設定 | `?target=server&cmd=transparent&enable=true&color=#00FF00` |
+| `transparent` | 透過ウィンドウ設定 | `?target=server&cmd=transparent&enable=true&color=00FF00` |
+
+Windows の `cmd.exe` などでは `%` が環境変数展開に使われるため、
+`color=%23RRGGBB` を記述する際は `%%23RRGGBB` としてください。
+色指定は `color=RRGGBB` 形式が基本です。`#RRGGBB` も受け付けます。
 | `allowDragObjects` | ドラッグ操作の有効/無効 | `?target=server&cmd=allowDragObjects&enable=true` |
 | `stayOnTop` | ウィンドウを最前面化 | `?target=server&cmd=stayOnTop&enable=true` |
 | `getstatus` | サーバ状態取得 | `?target=server&cmd=getstatus` |
