@@ -137,4 +137,16 @@ public abstract class HttpCommandHandlerBase : IHttpCommandHandler {
         if (val == "n") return false;
         return defaultValue;
     }
+
+    /// <summary>
+    /// 16進カラー文字列を Color に変換 (# 省略可)
+    /// </summary>
+    protected bool TryParseColor(string hex, out Color color) {
+        if (string.IsNullOrEmpty(hex)) {
+            color = default;
+            return false;
+        }
+        string normalized = hex.StartsWith("#") ? hex : "#" + hex;
+        return ColorUtility.TryParseHtmlString(normalized, out color);
+    }
 }

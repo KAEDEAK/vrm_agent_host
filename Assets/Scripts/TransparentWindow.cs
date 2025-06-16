@@ -240,7 +240,8 @@ public class TransparentWindow : MonoBehaviour {
     /// </summary>
     private void ApplyTransparentColorFromConfig() {
         string hex = config?.Window?.transparentColor ?? "#FF00FF";
-        if (ColorUtility.TryParseHtmlString(hex, out Color parsed)) {
+        string normalized = hex.StartsWith("#") ? hex : "#" + hex;
+        if (ColorUtility.TryParseHtmlString(normalized, out Color parsed)) {
             transparentColor = parsed;
         }
         else {
@@ -253,7 +254,11 @@ public class TransparentWindow : MonoBehaviour {
         var win = config.Window;
 
         Color parsedColor = Color.magenta;
-        bool isColorValid = ColorUtility.TryParseHtmlString(win.transparentColor, out parsedColor);
+        string winColorHex = win.transparentColor;
+        if (!string.IsNullOrEmpty(winColorHex) && !winColorHex.StartsWith("#")) {
+            winColorHex = "#" + winColorHex;
+        }
+        bool isColorValid = ColorUtility.TryParseHtmlString(winColorHex, out parsedColor);
 
         if (win.transparent) {
             if (isColorValid) {
