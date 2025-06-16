@@ -64,10 +64,10 @@ public class ServerCommandHandler : HttpCommandHandlerBase {
                     }
 
                     if (transparentWindow != null) {
-                        // color パラメータ取得
+                        // color パラメータ取得 ("#" 省略可)
                         string hexColor = GetQueryParam(query, "color", null);
                         if (!string.IsNullOrEmpty(hexColor)) {
-                            if (ColorUtility.TryParseHtmlString(hexColor, out Color parsedColor)) {
+                            if (TryParseColor(hexColor, out Color parsedColor)) {
                                 transparentWindow.OverrideTransparentColor(parsedColor);
                             } else {
                                 responseData.status = 400;

@@ -54,9 +54,9 @@ public class BackgroundCommandHandler : HttpCommandHandlerBase {
             case "fill":
                 _imageLoader.EnableCanvas(false); // UI Canvas は不要なので無効化
 
-                // GetQueryParam を使用して "color" パラメータ取得（なければ "#000000"）
-                string hexColor = GetQueryParam(query, "color", "#000000");
-                if (!ColorUtility.TryParseHtmlString(hexColor, out Color fillColor)) {
+                // GetQueryParam を使用して "color" パラメータ取得（"#" 省略可）
+                string hexColor = GetQueryParam(query, "color", "000000");
+                if (!TryParseColor(hexColor, out Color fillColor)) {
                     responseData.status = 400;
                     responseData.message = $"Invalid color format: {hexColor}";
                     break;
