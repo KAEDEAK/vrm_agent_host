@@ -107,6 +107,17 @@ public class AudioLipSync : MonoBehaviour {
         { "Oh", 0f }
     };
 
+    // Aa/Ee/Oh は縦開きが大きくなりすぎないよう制限する
+    private readonly Dictionary<ExpressionKey, float> mouthShapeLimits = new Dictionary<ExpressionKey, float>
+    {
+        { ExpressionKey.Aa, 0.4f },
+        { ExpressionKey.Ee, 0.5f },
+        { ExpressionKey.Oh, 0.5f }
+    };
+
+    // 0～1 でリップシンクの影響度を調整
+    private float lipSyncBlendWeight = 0.7f;
+
 
     private void Start() {
         vrmLoader = FindAnyObjectByType<VRMLoader>();
@@ -224,22 +235,27 @@ public class AudioLipSync : MonoBehaviour {
             float lerped = Mathf.Lerp(currentWeights[key], target, lerpSpeed);
             currentWeights[key] = lerped;
 
+            ExpressionKey exKey = default;
+            bool valid = true;
             switch (key) {
-                case "Aa":
-                    expression.SetWeight(ExpressionKey.Aa, lerped);
+                case "Aa": exKey = ExpressionKey.Aa; break;
+                case "Ih": exKey = ExpressionKey.Ih; break;
+                case "Ou": exKey = ExpressionKey.Ou; break;
+                case "Ee": exKey = ExpressionKey.Ee; break;
+                case "Oh": exKey = ExpressionKey.Oh; break;
+                default:
+                    valid = false;
                     break;
-                case "Ih":
-                    expression.SetWeight(ExpressionKey.Ih, lerped);
-                    break;
-                case "Ou":
-                    expression.SetWeight(ExpressionKey.Ou, lerped);
-                    break;
-                case "Ee":
-                    expression.SetWeight(ExpressionKey.Ee, lerped);
-                    break;
-                case "Oh":
-                    expression.SetWeight(ExpressionKey.Oh, lerped);
-                    break;
+            }
+
+            if (valid) {
+                float baseValue = expression.GetWeight(exKey);
+                float lipValue = lerped * lipSyncBlendWeight;
+                float finalValue = Mathf.Min(baseValue + lipValue, 1.0f);
+                if (mouthShapeLimits.TryGetValue(exKey, out var limit)) {
+                    finalValue = Mathf.Min(finalValue, limit);
+                }
+                expression.SetWeight(exKey, finalValue);
             }
         }
     }
