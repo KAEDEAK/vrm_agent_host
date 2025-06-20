@@ -107,7 +107,7 @@ public class AudioLipSync : MonoBehaviour {
         { "Oh", 0f }
     };
 
-    // Aa/Ee/Oh は縦開きが大きくなりすぎないよう制限する
+
     private readonly Dictionary<ExpressionKey, float> mouthShapeLimits = new Dictionary<ExpressionKey, float>
     {
         { ExpressionKey.Aa, 0.4f },
@@ -117,6 +117,7 @@ public class AudioLipSync : MonoBehaviour {
 
     // 0～1 でリップシンクの影響度を調整
     private float lipSyncBlendWeight = 0.7f;
+
 
 
     private void Start() {
@@ -249,6 +250,7 @@ public class AudioLipSync : MonoBehaviour {
             }
 
             if (valid) {
+
                 float baseValue = expression.GetWeight(exKey);
                 float lipValue = lerped * lipSyncBlendWeight;
                 float finalValue = Mathf.Min(baseValue + lipValue, 1.0f);
@@ -259,6 +261,7 @@ public class AudioLipSync : MonoBehaviour {
             }
         }
     }
+
 
 
 
