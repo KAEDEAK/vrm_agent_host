@@ -107,6 +107,16 @@ public class AudioLipSync : MonoBehaviour {
         { "Oh", 0f }
     };
 
+    // 前回フレームに適用したリップシンク値を保持し、表情値との加算を安定させる
+    private Dictionary<string, float> lastLipValues = new Dictionary<string, float>()
+    {
+        { "Aa", 0f },
+        { "Ih", 0f },
+        { "Ou", 0f },
+        { "Ee", 0f },
+        { "Oh", 0f }
+    };
+
 
     private void Start() {
         vrmLoader = FindAnyObjectByType<VRMLoader>();
@@ -224,22 +234,25 @@ public class AudioLipSync : MonoBehaviour {
             float lerped = Mathf.Lerp(currentWeights[key], target, lerpSpeed);
             currentWeights[key] = lerped;
 
+            ExpressionKey exKey = default;
+            bool valid = true;
             switch (key) {
-                case "Aa":
-                    expression.SetWeight(ExpressionKey.Aa, lerped);
+                case "Aa": exKey = ExpressionKey.Aa; break;
+                case "Ih": exKey = ExpressionKey.Ih; break;
+                case "Ou": exKey = ExpressionKey.Ou; break;
+                case "Ee": exKey = ExpressionKey.Ee; break;
+                case "Oh": exKey = ExpressionKey.Oh; break;
+                default:
+                    valid = false;
                     break;
-                case "Ih":
-                    expression.SetWeight(ExpressionKey.Ih, lerped);
-                    break;
-                case "Ou":
-                    expression.SetWeight(ExpressionKey.Ou, lerped);
-                    break;
-                case "Ee":
-                    expression.SetWeight(ExpressionKey.Ee, lerped);
-                    break;
-                case "Oh":
-                    expression.SetWeight(ExpressionKey.Oh, lerped);
-                    break;
+            }
+
+            if (valid) {
+                float currentExp = expression.GetWeight(exKey);
+                float baseValue = Mathf.Clamp01(currentExp - lastLipValues[key]);
+                float finalValue = Mathf.Min(baseValue + lerped, 1.0f);
+                expression.SetWeight(exKey, finalValue);
+                lastLipValues[key] = lerped;
             }
         }
     }
