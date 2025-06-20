@@ -117,6 +117,7 @@ public class AudioLipSync : MonoBehaviour {
         { "Oh", 0f }
     };
 
+
     // mouth shape open limits to keep vertical mouth movements natural
     private readonly Dictionary<ExpressionKey, float> mouthShapeLimits = new Dictionary<ExpressionKey, float>
     {
@@ -127,6 +128,7 @@ public class AudioLipSync : MonoBehaviour {
 
     // blending weight for how strongly lip sync affects current expression
     private float lipSyncBlendWeight = 0.7f;
+
 
 
     private void Start() {
@@ -259,6 +261,7 @@ public class AudioLipSync : MonoBehaviour {
             }
 
             if (valid) {
+
                 float lipValue = lerped * lipSyncBlendWeight;
                 float currentExp = expression.GetWeight(exKey);
                 float baseValue = Mathf.Clamp01(currentExp - lastLipValues[key]);
@@ -272,6 +275,7 @@ public class AudioLipSync : MonoBehaviour {
             }
         }
     }
+
 
 
 
