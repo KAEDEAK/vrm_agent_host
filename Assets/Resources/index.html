@@ -247,6 +247,24 @@
       overflow: hidden;
     }
 
+    #statusMonitor {
+      position: fixed;
+      top: 0;
+      left: 0;
+      padding: 4px;
+      display: flex;
+      gap: 2px;
+      flex-wrap: wrap;
+      max-width: 220px;
+      z-index: 1000;
+    }
+
+    .status-box {
+      width: 10px;
+      height: 10px;
+      background-color: #0f0;
+    }
+
     #tocHeader {
       flex-shrink: 0;
       font-weight: bold;
@@ -410,6 +428,7 @@
 
 <body onload="initI18nAndApply()"> <!-- Call i18n-loader on page load -->
   <h1 data-locale="title.main">General VRM Agent Host</h1>
+  <div id="statusMonitor"></div>
   <div class="main">
     <select id="themeSelect">
       <option value="auto" selected>Auto (System)</option>
@@ -1551,6 +1570,37 @@
     // Table of Contents generation
     document.addEventListener('DOMContentLoaded', () => {
 
+      // status monitor setup
+      const statusContainer = document.getElementById('statusMonitor');
+      let myVoxelCount = 0;
+      const MAX_VOXELS = 20;
+
+      function addVoxel() {
+        if (myVoxelCount >= MAX_VOXELS) return;
+        const box = document.createElement('div');
+        box.className = 'status-box';
+        statusContainer.appendChild(box);
+        myVoxelCount++;
+      }
+
+      function removeVoxels(percent) {
+        const removeCount = Math.ceil(myVoxelCount * percent);
+        for (let i = 0; i < removeCount; i++) {
+          if (statusContainer.firstChild) {
+            statusContainer.removeChild(statusContainer.firstChild);
+            myVoxelCount--;
+          }
+        }
+      }
+
+      window.updateStatus = function (owner) {
+        if (owner === 'ME') {
+          addVoxel();
+        } else {
+          if (myVoxelCount > 0) removeVoxels(0.1);
+        }
+      };
+
       // hooking console.log for debug
       const originalLog = console.log;
       const logContainer = document.getElementById('logEntries');
@@ -1560,6 +1610,13 @@
         line.textContent = `[${now}] ${msg}`;
         logContainer.appendChild(line);
         logContainer.scrollTop = logContainer.scrollHeight;
+
+        // simple keyword based status update
+        if (/AVATAR|NAGITAROR/i.test(msg)) {
+          updateStatus('OTHER');
+        } else if (/YOU|ME/i.test(msg)) {
+          updateStatus('ME');
+        }
       };
 
       // show sum of delta
