@@ -16,6 +16,39 @@ public class AudioLipSync : MonoBehaviour {
     private enum LipSyncSource { None, Microphone, WASAPI }
     private LipSyncSource currentSource = LipSyncSource.None;
 
+    // LipSync Blend Mode System
+    public enum LipSyncBlendMode {
+        LIPSYNC_MODE_BLEND_EXPR,    // 現在の実装モード（表情との加算）
+        LIPSYNC_MODE_RESET_EXPR,    // 一定入力後に表情をリセット
+        LIPSYNC_MODE_NONE,          // 表情がある時はLipSyncを無効化
+        LIPSYNC_MODE_FULL,          // 破綻覚悟で単純加算（性能比較用）
+        LIPSYNC_MODE_AUTO           // BLEND_EXPRとRESET_EXPRをランダム適用
+    }
+
+    private LipSyncBlendMode currentBlendMode = LipSyncBlendMode.LIPSYNC_MODE_AUTO;
+    
+    // RESET_EXPR モード用の変数
+    private float lipSyncInputThreshold = 0.3f;     // リセットトリガーとなる入力レベル
+    private float lipSyncInputDuration = 0f;        // 連続入力時間
+    private float lipSyncInputRequiredTime = 1.0f;  // リセットまでの必要時間
+    private float lipSyncResetDelay = 1.0f;         // リセット遅延時間
+    private bool isWaitingForReset = false;         // リセット待機中フラグ
+    private Coroutine resetExpressionCoroutine;     // リセット用コルーチン
+    
+    // AUTO モード用の変数
+    private float autoModeChangeInterval = 5.0f;    // モード切り替え間隔（秒）
+    private float lastAutoModeChange = 0f;          // 最後のモード切り替え時間
+    private LipSyncBlendMode currentAutoMode = LipSyncBlendMode.LIPSYNC_MODE_BLEND_EXPR;
+    
+    // 表情検出用
+    private readonly ExpressionKey[] emotionExpressionKeys = {
+        ExpressionKey.CreateFromPreset(ExpressionPreset.angry),
+        ExpressionKey.CreateFromPreset(ExpressionPreset.happy),
+        ExpressionKey.CreateFromPreset(ExpressionPreset.sad),
+        ExpressionKey.CreateFromPreset(ExpressionPreset.surprised),
+        ExpressionKey.CreateFromPreset(ExpressionPreset.relaxed)
+    };
+
     private AudioClip microphoneClip;
     private string microphoneDevice;
     private WasapiLoopbackCapture wasapiCapture;
@@ -146,9 +179,6 @@ public class AudioLipSync : MonoBehaviour {
     }
 
 
-
-
-
     private void OnModelLoaded(GameObject vrmModel) {
         expression = vrmLoader.VrmInstance.Runtime.Expression;
     }
@@ -224,36 +254,220 @@ public class AudioLipSync : MonoBehaviour {
         float rms = (currentSource == LipSyncSource.WASAPI) ? wasapiVolume : GetMicrophoneVolume();
         float scaled = Mathf.Clamp01(rms * scaleMultiplier);
 
-        float lerpSpeed = 0.2f;
+        // AUTO モードの処理
+        if (currentBlendMode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) {
+            HandleAutoMode();
+        }
 
-        // 🔒 コピーして列挙安全に！
+        // 現在のブレンドモードに応じて処理を分岐
+        LipSyncBlendMode activeMode = (currentBlendMode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) ? currentAutoMode : currentBlendMode;
+
+        switch (activeMode) {
+            case LipSyncBlendMode.LIPSYNC_MODE_BLEND_EXPR:
+                Debug.Log("!! LIPSYNC_MODE_BLEND_EXPR");
+                ApplyBlendExprMode(phonemeRatios, scaled);
+                break;
+            case LipSyncBlendMode.LIPSYNC_MODE_RESET_EXPR:
+                Debug.Log("!! LIPSYNC_MODE_RESET_EXPR");
+                ApplyResetExprMode(phonemeRatios, scaled);
+                break;
+            case LipSyncBlendMode.LIPSYNC_MODE_NONE:
+                Debug.Log("!! LIPSYNC_MODE_NONE");
+                ApplyNoneMode(phonemeRatios, scaled);
+                break;
+            case LipSyncBlendMode.LIPSYNC_MODE_FULL:
+                Debug.Log("!! LIPSYNC_MODE_FULL");
+                ApplyFullMode(phonemeRatios, scaled);
+                break;
+        }
+    }
+
+    // BLEND_EXPR モード: 現在の実装（表情との加算）
+    private void ApplyBlendExprMode(Dictionary<string, float> phonemeRatios, float scaled) {
+        float lerpSpeed = 0.2f;
         var keys = new List<string>(currentWeights.Keys);
 
         foreach (var key in keys) {
             float target = phonemeRatios.TryGetValue(key, out var ratio) ? ratio * scaled : 0f;
             float lerped = Mathf.Lerp(currentWeights[key], target, lerpSpeed);
-            currentWeights[key] = lerped;
+            
+            // ダイナミックレンジ調整: 強い値は圧縮、弱い値はそのまま
+            float compressed = ApplyDynamicRange(lerped);
+            currentWeights[key] = compressed;
 
-            ExpressionKey exKey = default;
-            bool valid = true;
-            switch (key) {
-                case "Aa": exKey = ExpressionKey.Aa; break;
-                case "Ih": exKey = ExpressionKey.Ih; break;
-                case "Ou": exKey = ExpressionKey.Ou; break;
-                case "Ee": exKey = ExpressionKey.Ee; break;
-                case "Oh": exKey = ExpressionKey.Oh; break;
-                default:
-                    valid = false;
-                    break;
-            }
-
-            if (valid) {
+            ExpressionKey exKey = GetExpressionKey(key);
+            if (exKey.Preset != ExpressionPreset.custom) {
                 float currentExp = expression.GetWeight(exKey);
                 float baseValue = Mathf.Clamp01(currentExp - lastLipValues[key]);
-                float finalValue = Mathf.Min(baseValue + lerped, 1.0f);
+                float finalValue = Mathf.Min(baseValue + compressed, 1.0f);
                 expression.SetWeight(exKey, finalValue);
-                lastLipValues[key] = lerped;
+                lastLipValues[key] = compressed;
             }
+        }
+    }
+
+    // RESET_EXPR モード: 一定入力後に表情をリセット
+    private void ApplyResetExprMode(Dictionary<string, float> phonemeRatios, float scaled) {
+        // まずBLEND_EXPRと同様に処理
+        ApplyBlendExprMode(phonemeRatios, scaled);
+        
+        Debug.Log("!!! ApplyResetExprMode: scaled = " + scaled + ", lipSyncInputThreshold = " + lipSyncInputThreshold);
+
+
+        // 入力レベルの監視とリセット処理
+        if (scaled > lipSyncInputThreshold) {
+            Debug.Log("!!! scaled pass");
+            lipSyncInputDuration += Time.deltaTime;
+
+            Debug.Log($"!!! Debug values: lipSyncInputDuration={lipSyncInputDuration}, lipSyncInputRequiredTime={lipSyncInputRequiredTime}, isWaitingForReset={isWaitingForReset}");
+
+            if (lipSyncInputDuration >= lipSyncInputRequiredTime && !isWaitingForReset) {
+                Debug.Log("!!!  lipSyncInputDuration - pass");
+                isWaitingForReset = true;
+                if (resetExpressionCoroutine != null) {
+                    Debug.Log("!!!  resetExpressionCoroutine - pass");
+                    StopCoroutine(resetExpressionCoroutine);
+                }
+                resetExpressionCoroutine = StartCoroutine(DelayedExpressionReset());
+            }
+        }
+        else {
+            lipSyncInputDuration = 0f;
+        }
+    }
+
+    // NONE モード: 表情がある時はLipSyncを無効化
+    private void ApplyNoneMode(Dictionary<string, float> phonemeRatios, float scaled) {
+        if (HasActiveEmotionExpression()) {
+            // 表情がアクティブな場合はLipSyncを適用しない
+            ClearLipSyncValues();
+            return;
+        }
+        
+        // 表情がない場合は通常のLipSyncを適用
+        ApplyBlendExprMode(phonemeRatios, scaled);
+    }
+
+    // FULL モード: 改良前の単純実装（表情との競合を考慮しない直接設定）
+    private void ApplyFullMode(Dictionary<string, float> phonemeRatios, float scaled) {
+        float lerpSpeed = 0.2f;
+        var keys = new List<string>(currentWeights.Keys);
+
+        foreach (var key in keys) {
+            float target = phonemeRatios.TryGetValue(key, out var ratio) ? ratio * scaled : 0f;
+            float lerped = Mathf.Lerp(currentWeights[key], target, lerpSpeed);
+            
+            // ダイナミックレンジ調整: 強い値は圧縮、弱い値はそのまま
+            float compressed = ApplyDynamicRange(lerped);
+            currentWeights[key] = compressed;
+
+            switch (key) {
+                case "Aa":
+                    expression.SetWeight(ExpressionKey.Aa, compressed);
+                    break;
+                case "Ih":
+                    expression.SetWeight(ExpressionKey.Ih, compressed);
+                    break;
+                case "Ou":
+                    expression.SetWeight(ExpressionKey.Ou, compressed);
+                    break;
+                case "Ee":
+                    expression.SetWeight(ExpressionKey.Ee, compressed);
+                    break;
+                case "Oh":
+                    expression.SetWeight(ExpressionKey.Oh, compressed);
+                    break;
+            }
+        }
+    }
+
+    // AUTO モードの処理
+    private void HandleAutoMode() {
+        if (Time.time - lastAutoModeChange >= autoModeChangeInterval) {
+            // ランダムにBLEND_EXPRかRESET_EXPRを選択
+            currentAutoMode = (UnityEngine.Random.value < 0.5f) ? 
+                LipSyncBlendMode.LIPSYNC_MODE_BLEND_EXPR : 
+                LipSyncBlendMode.LIPSYNC_MODE_RESET_EXPR;
+            
+            lastAutoModeChange = Time.time;
+            Debug.Log($"[LipSync AUTO] モード切り替え: {currentAutoMode}");
+        }
+    }
+
+    // 表情のリセット（遅延実行）
+    private IEnumerator DelayedExpressionReset() {
+        yield return new WaitForSeconds(lipSyncResetDelay);
+        
+        if (expression == null) {
+            Debug.LogWarning("[LipSync RESET_EXPR] Expression が null のためリセットできません");
+            isWaitingForReset = false;
+            lipSyncInputDuration = 0f;
+            yield break;
+        }
+        
+        // 全ての表情をリセット（AnimationCommandHandlerの実装を参考）
+        foreach (var key in expression.ExpressionKeys) {
+            expression.SetWeight(key, 0.0f);
+        }
+        
+        Debug.Log("[LipSync RESET_EXPR] 表情をリセットしました");
+        isWaitingForReset = false;
+        lipSyncInputDuration = 0f;
+    }
+
+    // アクティブな感情表情があるかチェック
+    private bool HasActiveEmotionExpression() {
+        foreach (var key in emotionExpressionKeys) {
+            if (expression.GetWeight(key) > 0.01f) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // LipSync値をクリア
+    private void ClearLipSyncValues() {
+        var keys = new List<string>(currentWeights.Keys);
+        foreach (var key in keys) {
+            currentWeights[key] = 0f;
+            ExpressionKey exKey = GetExpressionKey(key);
+            if (exKey.Preset != ExpressionPreset.custom) {
+                float currentExp = expression.GetWeight(exKey);
+                float baseValue = Mathf.Clamp01(currentExp - lastLipValues[key]);
+                expression.SetWeight(exKey, baseValue);
+                lastLipValues[key] = 0f;
+            }
+        }
+    }
+
+    // 文字列からExpressionKeyを取得
+    private ExpressionKey GetExpressionKey(string key) {
+        switch (key) {
+            case "Aa": return ExpressionKey.Aa;
+            case "Ih": return ExpressionKey.Ih;
+            case "Ou": return ExpressionKey.Ou;
+            case "Ee": return ExpressionKey.Ee;
+            case "Oh": return ExpressionKey.Oh;
+            default: return ExpressionKey.CreateFromPreset(ExpressionPreset.custom);
+        }
+    }
+
+    // ダイナミックレンジ調整: 強い値は圧縮、弱い値はそのまま
+    private float ApplyDynamicRange(float input) {
+        if (input <= 0f) return 0f;
+        
+        // 閾値: この値以下はそのまま、以上は対数圧縮
+        float threshold = 0.4f;
+        
+        if (input <= threshold) {
+            // 弱い値はそのまま
+            return input;
+        } else {
+            // 強い値は対数圧縮で自然に減衰
+            // log(1 + x) を使用して滑らかな圧縮を実現
+            float excess = input - threshold;
+            float compressed = threshold + Mathf.Log(1f + excess * 2f) * 0.3f;
+            return Mathf.Clamp01(compressed);
         }
     }
 
@@ -374,9 +588,63 @@ public class AudioLipSync : MonoBehaviour {
         Debug.Log(i18nMsg.AUDIOSYNC_STOPPED);
     }
 
+    // ブレンドモード制御用のパブリックメソッド
+    public void SetLipSyncBlendMode(LipSyncBlendMode mode) {
+        currentBlendMode = mode;
+        Debug.Log($"[LipSync] ブレンドモードを変更: {mode}");
+        
+        // モード変更時のクリーンアップ
+        if (resetExpressionCoroutine != null) {
+            StopCoroutine(resetExpressionCoroutine);
+            resetExpressionCoroutine = null;
+        }
+        isWaitingForReset = false;
+        lipSyncInputDuration = 0f;
+        
+        // AUTOモードの場合は初期化
+        if (mode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) {
+            lastAutoModeChange = Time.time;
+            currentAutoMode = LipSyncBlendMode.LIPSYNC_MODE_BLEND_EXPR;
+        }
+    }
+
+    public LipSyncBlendMode GetLipSyncBlendMode() {
+        return currentBlendMode;
+    }
+
+    // RESET_EXPRモードのパラメータ設定
+    public void SetResetExprParameters(float threshold = 0.3f, float requiredTime = 1.0f, float resetDelay = 1.0f) {
+        lipSyncInputThreshold = threshold;
+        lipSyncInputRequiredTime = requiredTime;
+        lipSyncResetDelay = resetDelay;
+        Debug.Log($"[LipSync RESET_EXPR] パラメータ更新: threshold={threshold}, requiredTime={requiredTime}, resetDelay={resetDelay}");
+    }
+
+    // AUTOモードのパラメータ設定
+    public void SetAutoModeParameters(float changeInterval = 5.0f) {
+        autoModeChangeInterval = changeInterval;
+        Debug.Log($"[LipSync AUTO] パラメータ更新: changeInterval={changeInterval}");
+    }
+
+    // 表情を手動でリセット
+    public void ResetExpressions() {
+        if (expression == null) return;
+        
+        foreach (var key in emotionExpressionKeys) {
+            expression.SetWeight(key, 0.0f);
+        }
+        
+        Debug.Log("[LipSync] 表情を手動でリセットしました");
+    }
+
     public string GetLipSyncStatusJson() {
         AudioStatusInfo status = new AudioStatusInfo {
             currentSource = currentSource.ToString(),
+            currentBlendMode = currentBlendMode.ToString(),
+            currentAutoMode = (currentBlendMode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) ? currentAutoMode.ToString() : null,
+            hasActiveExpression = HasActiveEmotionExpression(),
+            isWaitingForReset = isWaitingForReset,
+            lipSyncInputDuration = lipSyncInputDuration,
             availableChannels = new List<AudioChannelInfo>()
             {
                 new AudioChannelInfo() { id = MICROPHONE_CHANNEL_ID, name = "Microphone" },
@@ -389,6 +657,11 @@ public class AudioLipSync : MonoBehaviour {
     [Serializable]
     public class AudioStatusInfo {
         public string currentSource;
+        public string currentBlendMode;
+        public string currentAutoMode;
+        public bool hasActiveExpression;
+        public bool isWaitingForReset;
+        public float lipSyncInputDuration;
         public List<AudioChannelInfo> availableChannels;
     }
 
