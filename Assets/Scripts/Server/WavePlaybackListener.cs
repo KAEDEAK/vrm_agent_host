@@ -11,6 +11,11 @@ public class WavePlaybackListener : MonoBehaviour {
     private Thread listenThread;
     private volatile bool stopping = false;
     private AudioSource audioSource;
+    private Coroutine playbackRoutine;
+    private string currentAudioId;
+    private float playStartTime;
+    private int restartAttempts;
+    private AudioLipSync lipSync;
 
     private void Awake() {
         if (Instance != null && Instance != this) {
@@ -36,6 +41,8 @@ public class WavePlaybackListener : MonoBehaviour {
     public void StartListener() {
         if (IsRunning) return;
         stopping = false;
+        restartAttempts = 0;
+        if (lipSync == null) lipSync = GameObject.FindObjectOfType<AudioLipSync>();
         int port = ServerConfig.Instance.wavePlaybackPort;
         listener = new HttpListener();
         listener.Prefixes.Add($"http://+:{port}/");
@@ -79,9 +86,22 @@ public class WavePlaybackListener : MonoBehaviour {
                 HandleContext(ctx);
             }
         }
+        if (!stopping && ServerConfig.Instance.waveListenerAutoRestart && restartAttempts < 5) {
+            restartAttempts++;
+            MainThreadInvoker.Invoke(() => StartCoroutine(RestartAfterDelay()));
+        }
+    }
+
+    private IEnumerator RestartAfterDelay() {
+        yield return new WaitForSeconds(1f);
+        if (!stopping) StartListener();
     }
 
     private void HandleContext(HttpListenerContext context) {
+        if (context.Request.HttpMethod == "GET" && context.Request.Url.AbsolutePath == "/ping") {
+            SendJson(context, 200, "ok");
+            return;
+        }
         if (context.Request.HttpMethod != "POST") {
             SendJson(context, 405, "method_not_allowed");
             return;
@@ -134,6 +154,7 @@ public class WavePlaybackListener : MonoBehaviour {
             var go = new GameObject("WavePlaybackSource");
             audioSource = go.AddComponent<AudioSource>();
         }
+        if (lipSync == null) lipSync = GameObject.FindObjectOfType<AudioLipSync>();
         try {
             if (!TryParseWav(data, out float[] samples, out int sampleRate)) {
                 SendJson(context, 422, "invalid_wav");
@@ -144,14 +165,48 @@ public class WavePlaybackListener : MonoBehaviour {
             bool spatial = spatialOverride ?? ServerConfig.Instance.waveSpatializationEnabled;
             audioSource.spatialBlend = spatial ? 1f : 0f;
             float baseVol = ServerConfig.Instance.wavePlaybackVolume;
+            string prevId = null;
+            if (audioSource.isPlaying) {
+                prevId = currentAudioId;
+                audioSource.Stop();
+                if (playbackRoutine != null) StopCoroutine(playbackRoutine);
+                Telemetry.LogEvent("wave_interrupt", new System.Collections.Generic.Dictionary<string, object>{{"old_id", prevId},{"new_id", audioId}});
+            }
             audioSource.volume = baseVol * headerVolume;
             audioSource.clip = clip;
             audioSource.Play();
-            SendJson(context, 200, "ok", audioId);
+            currentAudioId = audioId;
+            playStartTime = Time.time;
+            playbackRoutine = StartCoroutine(PlaybackCoroutine(samples, sampleRate, audioId));
+            Telemetry.LogEvent("wave_start", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"bytes", data.Length},{"ip", context.Request.RemoteEndPoint.Address.ToString()}});
+            if (prevId != null)
+                SendJson(context, 200, "interrupted", audioId, prevId);
+            else
+                SendJson(context, 200, "ok", audioId);
         } catch (Exception e) {
             Debug.LogError($"[Wave] playback error: {e.Message}");
             SendJson(context, 500, "internal_error");
         }
+    }
+
+    private IEnumerator PlaybackCoroutine(float[] samples, int sampleRate, string audioId) {
+        int step = Mathf.Max(1, sampleRate / 100); // 10ms
+        float offset = ServerConfig.Instance.lipSyncOffsetMs / 1000f;
+        float next = Time.time + offset;
+        for (int i = 0; i < samples.Length; i += step) {
+            float sum = 0f;
+            int count = 0;
+            for (int j = 0; j < step && i + j < samples.Length; j++) { sum += samples[i + j] * samples[i + j]; count++; }
+            float rms = Mathf.Sqrt(sum / count);
+            lipSync?.FeedWaveRms(rms);
+            float delay = next - Time.time;
+            if (delay > 0f) yield return new WaitForSeconds(delay); else yield return null;
+            next += 0.01f;
+        }
+        lipSync?.FeedWaveRms(0f);
+        Telemetry.LogEvent("wave_complete", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"duration_ms", (int)((Time.time - playStartTime)*1000)}});
+        currentAudioId = null;
+        playbackRoutine = null;
     }
 
     private bool TryParseWav(byte[] bytes, out float[] samples, out int sampleRate) {
@@ -191,9 +246,11 @@ public class WavePlaybackListener : MonoBehaviour {
         return true;
     }
 
-    private void SendJson(HttpListenerContext ctx, int status, string msg, string id = null) {
+    private void SendJson(HttpListenerContext ctx, int status, string msg, string id = null, string prevId = null) {
         string body;
-        if (id != null)
+        if (prevId != null)
+            body = $"{{\"status\":\"{msg}\",\"prev_id\":\"{prevId}\",\"id\":\"{id}\"}}";
+        else if (id != null)
             body = $"{{\"status\":\"{msg}\",\"id\":\"{id}\"}}";
         else
             body = $"{{\"status\":\"{msg}\"}}";

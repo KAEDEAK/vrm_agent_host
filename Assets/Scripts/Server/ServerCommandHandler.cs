@@ -11,7 +11,7 @@ public class ServerCommandHandler : HttpCommandHandlerBase {
     // 許可コマンド一覧（追加・拡張があればここに追記）
     private static readonly string[] AllowedCommands = {
         "transparent", "allowDragObjects", "stayOnTop", "getstatus", "terminate",
-        "waveplay_start", "waveplay_stop", "waveplay_status"
+        "waveplay_start", "waveplay_stop", "waveplay_status", "waveplay_ping", "reload_config"
     };
 
     // ★Win32 API 用：GetWindowRect / GetSystemMetrics
@@ -167,6 +167,37 @@ public class ServerCommandHandler : HttpCommandHandlerBase {
                         {"status", running ? "running" : "stopped"},
                         {"port", ServerConfig.Instance.wavePlaybackPort}
                     };
+                    SendResponse(context, responseData);
+                    break;
+                }
+
+            case "waveplay_ping": {
+                    bool running = WavePlaybackListener.Instance?.IsRunning ?? false;
+                    if (!running) {
+                        responseData.status = 200;
+                        responseData.message = new Dictionary<string, object>{{"status","stopped"}};
+                        SendResponse(context, responseData);
+                        break;
+                    }
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    try {
+                        var req = WebRequest.Create($"http://localhost:{ServerConfig.Instance.wavePlaybackPort}/ping");
+                        using var resp = req.GetResponse();
+                        sw.Stop();
+                        responseData.status = 200;
+                        responseData.message = new Dictionary<string, object>{{"status","running"},{"latency_ms",(int)sw.ElapsedMilliseconds}};
+                    } catch {
+                        responseData.status = 200;
+                        responseData.message = new Dictionary<string, object>{{"status","stopped"}};
+                    }
+                    SendResponse(context, responseData);
+                    break;
+                }
+
+            case "reload_config": {
+                    ServerConfig.Instance.ReloadConfig();
+                    responseData.status = 200;
+                    responseData.message = new Dictionary<string, object>{{"status","reloaded"}};
                     SendResponse(context, responseData);
                     break;
                 }

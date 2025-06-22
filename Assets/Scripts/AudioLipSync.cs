@@ -11,9 +11,10 @@ using System;
 using System.Collections.Generic;
 
 public class AudioLipSync : MonoBehaviour {
-    private const int MICROPHONE_CHANNEL_ID = 1;
-    private const int WASAPI_CHANNEL_ID = 3;
-    private enum LipSyncSource { None, Microphone, WASAPI }
+    private const int WAVE_CHANNEL_ID = 0;
+    private const int EXTERNAL_CHANNEL_ID = 1; // WASAPI
+    private const int MICROPHONE_CHANNEL_ID = 2;
+    private enum LipSyncSource { None, WavePlayback, External, Microphone }
     private LipSyncSource currentSource = LipSyncSource.None;
 
     // LipSync Blend Mode System
@@ -54,6 +55,7 @@ public class AudioLipSync : MonoBehaviour {
     private WasapiLoopbackCapture wasapiCapture;
     private float wasapiVolume = 0f;
     private object wasapiLock = new object();
+    private float waveRms = 0f;
 
     private const int sampleWindow = 128;
     private float[] samples = new float[sampleWindow];
@@ -251,7 +253,10 @@ public class AudioLipSync : MonoBehaviour {
     private void ApplyPhoneme(Dictionary<string, float> phonemeRatios) {
         if (expression == null) return;
 
-        float rms = (currentSource == LipSyncSource.WASAPI) ? wasapiVolume : GetMicrophoneVolume();
+        float rms = 0f;
+        if (currentSource == LipSyncSource.WavePlayback) rms = waveRms;
+        else if (currentSource == LipSyncSource.External) rms = wasapiVolume;
+        else if (currentSource == LipSyncSource.Microphone) rms = GetMicrophoneVolume();
         float scaled = Mathf.Clamp01(rms * scaleMultiplier);
 
         // AUTO モードの処理
@@ -498,6 +503,12 @@ public class AudioLipSync : MonoBehaviour {
         }
     }
 
+    private void StartLipSyncWave() {
+        isLipSyncActive = true;
+        currentSource = LipSyncSource.WavePlayback;
+        Debug.Log("Wave playback lip sync started.");
+    }
+
     private void StartLipSyncWASAPI() {
         try {
             wasapiCapture = new WasapiLoopbackCapture();
@@ -509,7 +520,7 @@ public class AudioLipSync : MonoBehaviour {
             wasapiCapture.DataAvailable += WasapiCapture_DataAvailable;
             wasapiCapture.Start();
             isLipSyncActive = true;
-            currentSource = LipSyncSource.WASAPI;
+            currentSource = LipSyncSource.External;
             Debug.Log(i18nMsg.AUDIOSYNC_WASAPI_STARTED);
         }
         catch (Exception ex) {
@@ -537,6 +548,10 @@ public class AudioLipSync : MonoBehaviour {
         }
     }
 
+    public void FeedWaveRms(float rms) {
+        waveRms = rms;
+    }
+
     public void StartLipSync(int channel, float scale) {
         scaleMultiplier = scale;
         StartLipSync(channel);
@@ -555,11 +570,14 @@ public class AudioLipSync : MonoBehaviour {
 
         expression = vrmLoader.VrmInstance.Runtime.Expression;
 
-        if (channel == MICROPHONE_CHANNEL_ID) {
-            StartLipSyncMic();
+        if (channel == WAVE_CHANNEL_ID) {
+            StartLipSyncWave();
         }
-        else if (channel == WASAPI_CHANNEL_ID) {
+        else if (channel == EXTERNAL_CHANNEL_ID) {
             StartLipSyncWASAPI();
+        }
+        else if (channel == MICROPHONE_CHANNEL_ID) {
+            StartLipSyncMic();
         }
         else {
             Debug.LogError(string.Format(i18nMsg.AUDIOSYNC_INVALID_CHANNEL, channel));
@@ -572,10 +590,13 @@ public class AudioLipSync : MonoBehaviour {
         if (currentSource == LipSyncSource.Microphone) {
             Microphone.End(microphoneDevice);
         }
-        else if (currentSource == LipSyncSource.WASAPI) {
+        else if (currentSource == LipSyncSource.External) {
             wasapiCapture?.Stop();
             wasapiCapture?.Dispose();
             wasapiCapture = null;
+        }
+        else if (currentSource == LipSyncSource.WavePlayback) {
+            waveRms = 0f;
         }
 
         isLipSyncActive = false;
@@ -647,8 +668,9 @@ public class AudioLipSync : MonoBehaviour {
             lipSyncInputDuration = lipSyncInputDuration,
             availableChannels = new List<AudioChannelInfo>()
             {
-                new AudioChannelInfo() { id = MICROPHONE_CHANNEL_ID, name = "Microphone" },
-                new AudioChannelInfo() { id = WASAPI_CHANNEL_ID, name = "System Audio (WASAPI)" }
+                new AudioChannelInfo() { id = WAVE_CHANNEL_ID, name = "WavePlayback" },
+                new AudioChannelInfo() { id = EXTERNAL_CHANNEL_ID, name = "ExternalAudio" },
+                new AudioChannelInfo() { id = MICROPHONE_CHANNEL_ID, name = "Microphone" }
             }
         };
         return JsonUtility.ToJson(status);
