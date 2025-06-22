@@ -57,8 +57,13 @@ Do not use
 | cmd | 概要 | 例 |
 | --- | --- | --- |
 | `getstatus` | 現在の状態を取得 | `?target=lipSync&cmd=getstatus` |
-| `audiosync` | マイク入力でリップシンク開始 | `?target=lipSync&cmd=audiosync&channel=1&scale=3` |
+| `audiosync` | マイク入力でリップシンク開始 | `?target=lipSync&cmd=audiosync&channel=2&scale=3` |
 | `audiosync_off` | リップシンク停止 | `?target=lipSync&cmd=audiosync_off` |
+
+Channel IDs are as follows:
+* `0`: WavePlayback
+* `1`: ExternalAudio
+* `2`: Microphone (default)
 
 #### `server`
 

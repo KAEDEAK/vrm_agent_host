@@ -32,7 +32,8 @@ public class LipSyncCommandHandler : HttpCommandHandlerBase {
 
             case "audiosync":
             case "audiosync_on":
-                int channel = GetQueryInt(query, "channel", 1);
+                // Default to microphone channel for backward compatibility
+                int channel = GetQueryInt(query, "channel", 2);
                 float scale = GetQueryFloat(query, "scale", 3.0f);
 
                 _lipSync.StartLipSync(channel, scale);
