@@ -47,8 +47,8 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
 
 3.1 WAVE受信エンドポイント
 [Implemented] F-1  リスナーは wavePlaybackEnabled == true でのみ起動する。
-[Implemented] F-2  デフォルトポートは 50800。Config の wavePlaybackPort で変更可能。
-[Implemented] F-3  POST /waveplay      (専用ポート配下 ルートまたは /waveplay パス許容)
+[Implemented] F-2  メイン HTTP ポート(既定 34560)で動作。専用ポート設定は廃止。
+[Implemented] F-3  POST /waveplay/     (AnimationServer と同じポート)
       ヘッダー:
         Content-Type     : audio/wav  (必須)
         X-Audio-ID       : 文字列     (任意)
@@ -69,19 +69,15 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
 
 3.2 WAVEリスナー制御 API
 [Implemented] F-7  GET /server/waveplay/start
-      – リスナー未起動なら起動し 200 OK
-        { "status":"started", "port":50800 }
-      – 既に起動中なら 200 OK
-        { "status":"already_running", "port":50800 }
-      – ポート競合などで起動失敗 → 409 Conflict
-        { "error":"port_in_use", "port":50800 }
+      – 統合のため start/stop 操作は不要。
+        wavePlaybackEnabled=true の場合 { "status":"integrated", "port":<httpPort>, "endpoint":"/waveplay/" }
+        無効時は { "status":"disabled" }
 
 [Implemented] F-8  GET /server/waveplay/stop
-      – リスナー停止し 200 OK { "status":"stopped" }
-      – 既に停止中なら { "status":"already_stopped" }
+      – 常に { "status":"integrated" }
 
 [Implemented] F-9  GET /server/waveplay/status
-      – 200 OK { "status":"running"|"stopped", "port":50800 }
+      – 200 OK { "status":"running"|"stopped", "port":<httpPort>, "endpoint":"/waveplay/" }
 
 [Implemented] F-10 同時リクエスト処理方針
       • wavePlaybackConcurrency = "interrupt" / "reject" / "queue"
@@ -123,7 +119,6 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
 [Implemented] 3.5 ServerConfig 追加項目
 {
   "wavePlaybackEnabled"        : false,
-  "wavePlaybackPort"           : 50800,
   "wavePlaybackVolume"         : 1.0,
   "waveSpatializationEnabled"  : true,
   "wavePayloadMaxBytes"        : 5000000,
