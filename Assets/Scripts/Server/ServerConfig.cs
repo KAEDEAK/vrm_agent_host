@@ -87,6 +87,7 @@ public class ServerConfig {
     public int  wavePayloadMaxBytes = 5000000;
     public bool waveListenerAutoRestart = true;
     public int  lipSyncOffsetMs = 0;
+    public string wavePlaybackConcurrency = "interrupt";
     public List<FileControlEntry> fileControl = new List<FileControlEntry>();
 
     [SerializeField] private CameraConfigData camera = new CameraConfigData();
@@ -233,6 +234,7 @@ public class ServerConfig {
             wavePayloadMaxBytes = data.wavePayloadMaxBytes;
             waveListenerAutoRestart = data.waveListenerAutoRestart;
             lipSyncOffsetMs = data.lipSyncOffsetMs;
+            wavePlaybackConcurrency = data.wavePlaybackConcurrency ?? "interrupt";
             fileControl = data.fileControl;
             window = data.window;
             camera = data.camera;

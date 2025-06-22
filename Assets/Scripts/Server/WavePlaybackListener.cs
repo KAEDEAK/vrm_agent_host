@@ -16,6 +16,16 @@ public class WavePlaybackListener : MonoBehaviour {
     private float playStartTime;
     private int restartAttempts;
     private AudioLipSync lipSync;
+    private readonly System.Collections.Generic.Queue<WaveItem> waveQueue = new System.Collections.Generic.Queue<WaveItem>();
+    private string lastConcurrency;
+
+    private class WaveItem {
+        public byte[] data;
+        public HttpListenerContext context;
+        public string id;
+        public float volume;
+        public bool? spatial;
+    }
 
     private void Awake() {
         if (Instance != null && Instance != this) {
@@ -146,10 +156,40 @@ public class WavePlaybackListener : MonoBehaviour {
             data = ms.ToArray();
         }
 
-        MainThreadInvoker.Invoke(() => PlayWave(data, context, audioId, volume, spatialOverride));
+        MainThreadInvoker.Invoke(() => EnqueueWave(data, context, audioId, volume, spatialOverride));
     }
 
-    private void PlayWave(byte[] data, HttpListenerContext context, string audioId, float headerVolume, bool? spatialOverride) {
+    private void EnqueueWave(byte[] data, HttpListenerContext context, string audioId, float headerVolume, bool? spatialOverride) {
+        string mode = ServerConfig.Instance.wavePlaybackConcurrency ?? "interrupt";
+        if (lastConcurrency != mode) {
+            if (lastConcurrency == "queue" && mode != "queue") waveQueue.Clear();
+            lastConcurrency = mode;
+        }
+
+        var item = new WaveItem{ data = data, context = context, id = audioId, volume = headerVolume, spatial = spatialOverride };
+
+        if (mode == "queue") {
+            if (audioSource != null && audioSource.isPlaying) {
+                waveQueue.Enqueue(item);
+                SendJson(context, 200, "queued", audioId);
+                return;
+            }
+            PlayWave(item);
+            return;
+        }
+        if (mode == "reject" && audioSource != null && audioSource.isPlaying) {
+            SendJson(context, 409, "busy");
+            return;
+        }
+        PlayWave(item);
+    }
+
+    private void PlayWave(WaveItem item) {
+        var data = item.data;
+        var context = item.context;
+        string audioId = item.id;
+        float headerVolume = item.volume;
+        bool? spatialOverride = item.spatial;
         if (audioSource == null) {
             var go = new GameObject("WavePlaybackSource");
             audioSource = go.AddComponent<AudioSource>();
@@ -207,6 +247,10 @@ public class WavePlaybackListener : MonoBehaviour {
         Telemetry.LogEvent("wave_complete", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"duration_ms", (int)((Time.time - playStartTime)*1000)}});
         currentAudioId = null;
         playbackRoutine = null;
+        if (ServerConfig.Instance.wavePlaybackConcurrency == "queue" && waveQueue.Count > 0) {
+            var next = waveQueue.Dequeue();
+            PlayWave(next);
+        }
     }
 
     private bool TryParseWav(byte[] bytes, out float[] samples, out int sampleRate) {

@@ -84,10 +84,13 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
       – 200 OK { "status":"running"|"stopped", "port":50800 }
 
 [Implemented] F-10 同時リクエスト処理方針
-      • wavePlaybackConcurrency = "interrupt" 固定
-        - 新リクエストが来た時点で再生中を停止し上書き再生
-        - API 応答: 200 OK { "status":"interrupted","prev_id":"xxx","id":"yyy" }
-      • busy を拒否するモードは将来 wavePlaybackConcurrency = "reject" で検討
+      • wavePlaybackConcurrency = "interrupt" / "reject" / "queue"
+        - interrupt : 新リクエストが来た時点で再生中を停止し上書き再生
+        - reject    : 再生中は 409 Conflict を返す
+        - queue     : 再生中なら末尾にキューイングし終了後に順次再生
+        - interrupt時 API 応答: 200 OK { "status":"interrupted","prev_id":"xxx","id":"yyy" }
+        - queue時     API 応答: 200 OK { "status":"queued","id":"yyy" }
+      • queue から他モードへ変更すると未再生キューは破棄される
 
 [Implemented] F-11 GET /server/waveplay/ping
       – リスナー稼働時: { "status":"running", "latency_ms":<int> }
