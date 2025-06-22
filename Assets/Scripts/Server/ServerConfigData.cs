@@ -66,7 +66,6 @@ public class ServerConfigData {
 
     // --- Wave Playback ---
     public bool wavePlaybackEnabled = false;
-    public int  wavePlaybackPort = 50800;
     public float wavePlaybackVolume = 1.0f;
     public bool waveSpatializationEnabled = true;
     public int  wavePayloadMaxBytes = 5000000;

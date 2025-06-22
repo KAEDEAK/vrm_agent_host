@@ -13,7 +13,6 @@
   "vsync": false,
   "targetFramerate": 60,
   "wavePlaybackEnabled": false,
-  "wavePlaybackPort": 50800,
   "wavePlaybackVolume": 1.0,
   "waveSpatializationEnabled": true,
   "wavePayloadMaxBytes": 5000000,
