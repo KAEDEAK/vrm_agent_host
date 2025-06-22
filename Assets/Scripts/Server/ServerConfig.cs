@@ -244,6 +244,10 @@ public class ServerConfig {
         }
     }
 
+    public void ReloadConfig() {
+        LoadConfigForInstance();
+    }
+
 
 
 

@@ -83,17 +83,17 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
 [Implemented] F-9  GET /server/waveplay/status
       – 200 OK { "status":"running"|"stopped", "port":50800 }
 
-[Hold] F-10 同時リクエスト処理方針
+[Implemented] F-10 同時リクエスト処理方針
       • wavePlaybackConcurrency = "interrupt" 固定
         - 新リクエストが来た時点で再生中を停止し上書き再生
         - API 応答: 200 OK { "status":"interrupted","prev_id":"xxx","id":"yyy" }
       • busy を拒否するモードは将来 wavePlaybackConcurrency = "reject" で検討
 
-[Hold] F-11 GET /server/waveplay/ping
+[Implemented] F-11 GET /server/waveplay/ping
       – リスナー稼働時: { "status":"running", "latency_ms":<int> }
       – Stop状態      : { "status":"stopped" }
 
-[Hold] F-12 GET /server/reload_config
+[Implemented] F-12 GET /server/reload_config
       – ServerConfig.json を再読込。成功 200 OK { "status":"reloaded" }
 
 3.3 WAVE音声再生
@@ -103,19 +103,19 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
 [Implemented] P-4  SpatialBlend:
       true  → 1.0、false → 0.0
       MinDistance=1, MaxDistance=15, Spread=0 (変更可)
-[Hold] P-5  再生完了または中断時に Log レコード + Telemetry 1 イベント送信
-[Hold] P-6  自動再起動: リスナーが例外終了した場合
+[Implemented] P-5  再生完了または中断時に Log レコード + Telemetry 1 イベント送信
+[Implemented] P-6  自動再起動: リスナーが例外終了した場合
       – autoRestart=true(default) なら 1 s 後にリトライ (最大5回)
       – false なら停止したまま。/start を再呼び出し。
 
 3.4 リップシンク連動
-[Hold] L-1  LipSync Input Channels:
+[Implemented] L-1  LipSync Input Channels:
       0: WavePlayback
       1: ExternalAudio
       2: Microphone
-[Hold] L-2  WavePlaybackSource.AudioClip の RMS 値を 10 ms ごとに計測し
+[Implemented] L-2  WavePlaybackSource.AudioClip の RMS 値を 10 ms ごとに計測し
       既存リップシンクドライバに入力。
-[Hold] L-3  lipSyncOffsetMs (-100〜+100, 既定 0) で位相補正可能。
+[Implemented] L-3  lipSyncOffsetMs (-100〜+100, 既定 0) で位相補正可能。
 
 [Implemented] 3.5 ServerConfig 追加項目
 {
