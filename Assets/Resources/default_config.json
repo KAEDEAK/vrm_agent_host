@@ -19,6 +19,7 @@
   "wavePayloadMaxBytes": 5000000,
   "waveListenerAutoRestart": true,
   "lipSyncOffsetMs": 0,
+  "wavePlaybackConcurrency": "interrupt",
   "shadows": {
     "shadowStrength": 0.8,
     "shadowBias": 0.02,

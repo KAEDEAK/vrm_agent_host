@@ -72,6 +72,7 @@ public class ServerConfigData {
     public int  wavePayloadMaxBytes = 5000000;
     public bool waveListenerAutoRestart = true;
     public int  lipSyncOffsetMs = 0;
+    public string wavePlaybackConcurrency = "interrupt";
 
     public List<FileControlEntry> fileControl = new List<FileControlEntry>();
     public List<AnimationOverride> animations = new List<AnimationOverride>();
