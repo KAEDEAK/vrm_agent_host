@@ -186,7 +186,17 @@ public class AudioLipSync : MonoBehaviour {
         expression = vrmLoader.VrmInstance.Runtime.Expression;
     }
     private void Update() {
-        if (!isLipSyncActive || fftProvider == null)
+        if (!isLipSyncActive)
+            return;
+
+        // WavePlayback は FFT データを持たないため、RMS から単純な口パクを適用
+        if (currentSource == LipSyncSource.WavePlayback) {
+            var ratios = new Dictionary<string, float> { { "Aa", 1f } };
+            ApplyPhoneme(ratios);
+            return;
+        }
+
+        if (fftProvider == null)
             return;
 
         int requiredLength = (int)fftSize;
