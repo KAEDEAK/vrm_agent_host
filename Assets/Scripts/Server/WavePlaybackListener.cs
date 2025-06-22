@@ -233,24 +233,24 @@ public class WavePlaybackListener : MonoBehaviour {
     private IEnumerator PlaybackCoroutine(float[] samples, int sampleRate, string audioId) {
         int step = Mathf.Max(1, sampleRate / 100); // 10ms
         float offset = ServerConfig.Instance.lipSyncOffsetMs / 1000f;
-        float next = Time.time + offset;
+        float nextTime = Time.time + offset;
         for (int i = 0; i < samples.Length; i += step) {
             float sum = 0f;
             int count = 0;
             for (int j = 0; j < step && i + j < samples.Length; j++) { sum += samples[i + j] * samples[i + j]; count++; }
             float rms = Mathf.Sqrt(sum / count);
             lipSync?.FeedWaveRms(rms);
-            float delay = next - Time.time;
+            float delay = nextTime - Time.time;
             if (delay > 0f) yield return new WaitForSeconds(delay); else yield return null;
-            next += 0.01f;
+            nextTime += 0.01f;
         }
         lipSync?.FeedWaveRms(0f);
         Telemetry.LogEvent("wave_complete", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"duration_ms", (int)((Time.time - playStartTime)*1000)}});
         currentAudioId = null;
         playbackRoutine = null;
         if (ServerConfig.Instance.wavePlaybackConcurrency == "queue" && waveQueue.Count > 0) {
-            var next = waveQueue.Dequeue();
-            PlayWave(next);
+            var nextItem = waveQueue.Dequeue();
+            PlayWave(nextItem);
         }
     }
 
