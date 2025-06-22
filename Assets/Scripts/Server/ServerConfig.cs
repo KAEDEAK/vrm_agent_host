@@ -31,6 +31,17 @@ public class ServerConfig {
     private static readonly string configPath = UserPaths.ConfigPath;
     public static ServerConfig Instance {
         get {
+#if UNITY_EDITOR
+            // Editorモードでは初期化しない
+            if (!UnityEditor.EditorApplication.isPlaying) {
+                return null;
+            }
+#endif
+            // Play mode でのみ初期化
+            if (!Application.isPlaying) {
+                return null;
+            }
+            
             if (_instance == null) {
                 lock (_lock) {
                     if (_instance == null) _instance = LoadConfig();

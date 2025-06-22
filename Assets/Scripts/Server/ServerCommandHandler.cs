@@ -142,53 +142,74 @@ public class ServerCommandHandler : HttpCommandHandlerBase {
                 }
 
             case "waveplay_start": {
-                    WavePlaybackListener.Instance?.StartListener();
+                    // Wave playback is now integrated into AnimationServer
+                    bool enabled = ServerConfig.Instance.wavePlaybackEnabled;
                     responseData.status = 200;
                     responseData.message = new Dictionary<string, object> {
-                        {"status", "started"},
-                        {"port", ServerConfig.Instance.wavePlaybackPort}
+                        {"status", enabled ? "integrated" : "disabled"},
+                        {"port", ServerConfig.Instance.httpPort},
+                        {"endpoint", "/waveplay/"}
                     };
                     SendResponse(context, responseData);
                     break;
                 }
 
             case "waveplay_stop": {
-                    WavePlaybackListener.Instance?.StopListener();
+                    // Wave playback is now integrated into AnimationServer
                     responseData.status = 200;
-                    responseData.message = new Dictionary<string, object> {{"status","stopped"}};
+                    responseData.message = new Dictionary<string, object> {
+                        {"status", "integrated"},
+                        {"note", "Wave playback is integrated into main server"}
+                    };
                     SendResponse(context, responseData);
                     break;
                 }
 
             case "waveplay_status": {
-                    bool running = WavePlaybackListener.Instance?.IsRunning ?? false;
+                    bool enabled = ServerConfig.Instance.wavePlaybackEnabled;
+                    bool serverRunning = AnimationServer.Instance?.IsHttpListening ?? false;
                     responseData.status = 200;
                     responseData.message = new Dictionary<string, object> {
-                        {"status", running ? "running" : "stopped"},
-                        {"port", ServerConfig.Instance.wavePlaybackPort}
+                        {"status", enabled && serverRunning ? "running" : "stopped"},
+                        {"port", ServerConfig.Instance.httpPort},
+                        {"endpoint", "/waveplay/"},
+                        {"enabled", enabled},
+                        {"server_running", serverRunning}
                     };
                     SendResponse(context, responseData);
                     break;
                 }
 
             case "waveplay_ping": {
-                    bool running = WavePlaybackListener.Instance?.IsRunning ?? false;
-                    if (!running) {
+                    bool enabled = ServerConfig.Instance.wavePlaybackEnabled;
+                    bool serverRunning = AnimationServer.Instance?.IsHttpListening ?? false;
+                    if (!enabled || !serverRunning) {
                         responseData.status = 200;
-                        responseData.message = new Dictionary<string, object>{{"status","stopped"}};
+                        responseData.message = new Dictionary<string, object>{
+                            {"status", "stopped"},
+                            {"enabled", enabled},
+                            {"server_running", serverRunning}
+                        };
                         SendResponse(context, responseData);
                         break;
                     }
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     try {
-                        var req = WebRequest.Create($"http://localhost:{ServerConfig.Instance.wavePlaybackPort}/ping");
+                        var req = WebRequest.Create($"http://localhost:{ServerConfig.Instance.httpPort}/waveplay/ping");
                         using var resp = req.GetResponse();
                         sw.Stop();
                         responseData.status = 200;
-                        responseData.message = new Dictionary<string, object>{{"status","running"},{"latency_ms",(int)sw.ElapsedMilliseconds}};
+                        responseData.message = new Dictionary<string, object>{
+                            {"status","running"},
+                            {"latency_ms",(int)sw.ElapsedMilliseconds},
+                            {"endpoint", "/waveplay/"}
+                        };
                     } catch {
                         responseData.status = 200;
-                        responseData.message = new Dictionary<string, object>{{"status","stopped"}};
+                        responseData.message = new Dictionary<string, object>{
+                            {"status","stopped"},
+                            {"endpoint", "/waveplay/"}
+                        };
                     }
                     SendResponse(context, responseData);
                     break;

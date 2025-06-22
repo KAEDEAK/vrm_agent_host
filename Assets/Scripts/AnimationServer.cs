@@ -45,6 +45,23 @@ public class AnimationServer : MonoBehaviour {
     // target=xxx で振り分ける各種コマンドハンドラ
     private Dictionary<string, IHttpCommandHandler> commandHandlers;
 
+    // Wave playback functionality
+    private AudioSource audioSource;
+    private Coroutine playbackRoutine;
+    private string currentAudioId;
+    private float playStartTime;
+    private AudioLipSync lipSync;
+    private readonly System.Collections.Generic.Queue<WaveItem> waveQueue = new System.Collections.Generic.Queue<WaveItem>();
+    private string lastConcurrency;
+
+    private class WaveItem {
+        public byte[] data;
+        public HttpListenerContext context;
+        public string id;
+        public float volume;
+        public bool? spatial;
+    }
+
     #region sanitize
 
     private bool IsSafeQueryParam(string paramValue, int maxLength = 100) {
@@ -83,8 +100,11 @@ public class AnimationServer : MonoBehaviour {
 #endif
         Instance = this;
         Application.runInBackground = true;
-        LoadConfig();  // ServerConfig.Instance から設定をロード
-        i18nMsg.InitializeLocalization();
+        // Play mode でのみ設定をロード
+        if (Application.isPlaying) {
+            LoadConfig();  // ServerConfig.Instance から設定をロード
+            i18nMsg.InitializeLocalization();
+        }
     }
 
 #if UNITY_EDITOR
@@ -120,12 +140,8 @@ public class AnimationServer : MonoBehaviour {
         // 各コンポーネント取得
         var animationHandler = UnityEngine.Object.FindAnyObjectByType<AnimationHandler>();
         var vrmLoader = UnityEngine.Object.FindAnyObjectByType<VRMLoader>();
-        var lipSync = UnityEngine.Object.FindAnyObjectByType<AudioLipSync>();
+        this.lipSync = UnityEngine.Object.FindAnyObjectByType<AudioLipSync>();
         var imageLoader = UnityEngine.Object.FindAnyObjectByType<LocalImageLoader>();
-        var waveListener = UnityEngine.Object.FindAnyObjectByType<WavePlaybackListener>();
-        if (waveListener == null) {
-            waveListener = new GameObject("WavePlaybackListener").AddComponent<WavePlaybackListener>();
-        }
 
         // コマンドごとにハンドラを登録
         commandHandlers = new Dictionary<string, IHttpCommandHandler> {
@@ -175,6 +191,11 @@ public class AnimationServer : MonoBehaviour {
 
     private void LoadConfig() {
         var config = ServerConfig.Instance;
+        if (config == null) {
+            Debug.LogWarning("[AnimationServer] ServerConfig.Instance is null, using default values");
+            return;
+        }
+        
         httpPort = config.httpPort != 0 ? config.httpPort : 34560;
         httpsPort = config.httpsPort != 0 ? config.httpsPort : 34561;
         useHttp = config.useHttp;
@@ -185,7 +206,7 @@ public class AnimationServer : MonoBehaviour {
         vsync = config.vsync;
         targetFramerate = config.targetFramerate;
 
-        Debug.Log($"[DEBUG] listenLocalhostOnly = {ServerConfig.Instance.listenLocalhostOnly}");
+        Debug.Log($"[DEBUG] listenLocalhostOnly = {config.listenLocalhostOnly}");
     }
 
     private void StartServer() {
@@ -357,6 +378,11 @@ public class AnimationServer : MonoBehaviour {
     private bool IsIpAllowed(string remoteIP) {
         IPAddress remoteAddress = IPAddress.Parse(remoteIP);
         var config = ServerConfig.Instance;
+        
+        // configがnullの場合はlocalhostのみ許可
+        if (config == null) {
+            return IPAddress.IsLoopback(remoteAddress);
+        }
 
         // 許可されたIPリストが空なら localhost(127.0.0.1, ::1) のみ許可
         if (config.allowedRemoteIPs == null || config.allowedRemoteIPs.Count == 0)
@@ -537,6 +563,17 @@ public class AnimationServer : MonoBehaviour {
             return;
         }
 
+        // Wave playback endpoint
+        if (urlPath == "/waveplay" || urlPath.StartsWith("/waveplay/")) {
+            var config = ServerConfig.Instance;
+            if (config != null && config.wavePlaybackEnabled) {
+                HandleWavePlaybackRequest(context);
+            } else {
+                SendJsonResponse(context, 503, "Wave playback is disabled");
+            }
+            return;
+        }
+
         // ルートパス "/" の場合、クエリが無ければ index.html を返す
         if (urlPath == "/") {
             if (string.IsNullOrEmpty(context.Request.Url.Query)) {
@@ -679,6 +716,221 @@ public class AnimationServer : MonoBehaviour {
             commandHandlers[target].HandleCommand(null, cmdQuery);
         }
         return true;
+    }
+
+    #endregion
+
+    #region Wave Playback Handling
+
+    private void HandleWavePlaybackRequest(HttpListenerContext context) {
+        if (context.Request.HttpMethod == "GET" && context.Request.Url.AbsolutePath == "/waveplay/ping") {
+            SendWaveJsonResponse(context, 200, "ok");
+            return;
+        }
+        
+        if (context.Request.HttpMethod != "POST") {
+            SendWaveJsonResponse(context, 405, "method_not_allowed");
+            return;
+        }
+
+        string path = context.Request.Url.AbsolutePath;
+        if (!(string.IsNullOrEmpty(path) || path == "/waveplay" || path == "/waveplay/")) {
+            SendWaveJsonResponse(context, 404, "not_found");
+            return;
+        }
+
+        if (!context.Request.ContentType?.StartsWith("audio/wav") ?? true) {
+            SendWaveJsonResponse(context, 415, "unsupported_media_type");
+            return;
+        }
+
+        long len = context.Request.ContentLength64;
+        var config = ServerConfig.Instance;
+        int max = config?.wavePayloadMaxBytes ?? 5000000;
+        if (len <= 0 || len > max) {
+            SendWaveJsonResponse(context, 413, "payload_too_large");
+            return;
+        }
+
+        string audioId = context.Request.Headers["X-Audio-ID"];
+        if (string.IsNullOrEmpty(audioId)) audioId = Guid.NewGuid().ToString();
+
+        float volume = 1.0f;
+        string volHeader = context.Request.Headers["X-Volume"];
+        if (!string.IsNullOrEmpty(volHeader) && float.TryParse(volHeader, out float vol)) {
+            volume = Mathf.Clamp(vol, 0f, 2f);
+        }
+
+        bool? spatialOverride = null;
+        string spatialHeader = context.Request.Headers["X-Spatial"];
+        if (!string.IsNullOrEmpty(spatialHeader)) {
+            spatialOverride = spatialHeader.ToLower() == "y" || spatialHeader.ToLower() == "yes";
+        }
+
+        byte[] data;
+        using (var ms = new MemoryStream()) {
+            context.Request.InputStream.CopyTo(ms);
+            data = ms.ToArray();
+        }
+
+        EnqueueWave(data, context, audioId, volume, spatialOverride);
+    }
+
+    private void EnqueueWave(byte[] data, HttpListenerContext context, string audioId, float headerVolume, bool? spatialOverride) {
+        var config = ServerConfig.Instance;
+        string mode = config?.wavePlaybackConcurrency ?? "interrupt";
+        if (lastConcurrency != mode) {
+            if (lastConcurrency == "queue" && mode != "queue") waveQueue.Clear();
+            lastConcurrency = mode;
+        }
+
+        var item = new WaveItem{ data = data, context = context, id = audioId, volume = headerVolume, spatial = spatialOverride };
+
+        if (mode == "queue") {
+            if (audioSource != null && audioSource.isPlaying) {
+                waveQueue.Enqueue(item);
+                SendWaveJsonResponse(context, 200, "queued", audioId);
+                return;
+            }
+            PlayWave(item);
+            return;
+        }
+        if (mode == "reject" && audioSource != null && audioSource.isPlaying) {
+            SendWaveJsonResponse(context, 409, "busy");
+            return;
+        }
+        PlayWave(item);
+    }
+
+    private void PlayWave(WaveItem item) {
+        var data = item.data;
+        var context = item.context;
+        string audioId = item.id;
+        float headerVolume = item.volume;
+        bool? spatialOverride = item.spatial;
+        
+        if (audioSource == null) {
+            var go = new GameObject("WavePlaybackSource");
+            audioSource = go.AddComponent<AudioSource>();
+        }
+        if (lipSync == null) lipSync = GameObject.FindObjectOfType<AudioLipSync>();
+        
+        try {
+            if (!TryParseWav(data, out float[] samples, out int sampleRate)) {
+                SendWaveJsonResponse(context, 422, "invalid_wav");
+                return;
+            }
+            var clip = AudioClip.Create("wave", samples.Length, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            var config = ServerConfig.Instance;
+            bool spatial = spatialOverride ?? (config?.waveSpatializationEnabled ?? true);
+            audioSource.spatialBlend = spatial ? 1f : 0f;
+            float baseVol = config?.wavePlaybackVolume ?? 1.0f;
+            string prevId = null;
+            if (audioSource.isPlaying) {
+                prevId = currentAudioId;
+                audioSource.Stop();
+                if (playbackRoutine != null) StopCoroutine(playbackRoutine);
+                Telemetry.LogEvent("wave_interrupt", new System.Collections.Generic.Dictionary<string, object>{{"old_id", prevId},{"new_id", audioId}});
+            }
+            audioSource.volume = baseVol * headerVolume;
+            audioSource.clip = clip;
+            audioSource.Play();
+            currentAudioId = audioId;
+            playStartTime = Time.time;
+            playbackRoutine = StartCoroutine(PlaybackCoroutine(samples, sampleRate, audioId));
+            Telemetry.LogEvent("wave_start", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"bytes", data.Length},{"ip", context.Request.RemoteEndPoint.Address.ToString()}});
+            if (prevId != null)
+                SendWaveJsonResponse(context, 200, "interrupted", audioId, prevId);
+            else
+                SendWaveJsonResponse(context, 200, "ok", audioId);
+        } catch (Exception e) {
+            Debug.LogError($"[Wave] playback error: {e.Message}");
+            SendWaveJsonResponse(context, 500, "internal_error");
+        }
+    }
+
+    private IEnumerator PlaybackCoroutine(float[] samples, int sampleRate, string audioId) {
+        int step = Mathf.Max(1, sampleRate / 100); // 10ms
+        var config = ServerConfig.Instance;
+        float offset = (config?.lipSyncOffsetMs ?? 0) / 1000f;
+        float nextTime = Time.time + offset;
+        for (int i = 0; i < samples.Length; i += step) {
+            float sum = 0f;
+            int count = 0;
+            for (int j = 0; j < step && i + j < samples.Length; j++) { sum += samples[i + j] * samples[i + j]; count++; }
+            float rms = Mathf.Sqrt(sum / count);
+            lipSync?.FeedWaveRms(rms);
+            float delay = nextTime - Time.time;
+            if (delay > 0f) yield return new WaitForSeconds(delay); else yield return null;
+            nextTime += 0.01f;
+        }
+        lipSync?.FeedWaveRms(0f);
+        Telemetry.LogEvent("wave_complete", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"duration_ms", (int)((Time.time - playStartTime)*1000)}});
+        currentAudioId = null;
+        playbackRoutine = null;
+        if ((config?.wavePlaybackConcurrency ?? "interrupt") == "queue" && waveQueue.Count > 0) {
+            var nextItem = waveQueue.Dequeue();
+            PlayWave(nextItem);
+        }
+    }
+
+    private bool TryParseWav(byte[] bytes, out float[] samples, out int sampleRate) {
+        samples = null;
+        sampleRate = 48000;
+        if (bytes.Length < 44) return false;
+        using (var ms = new MemoryStream(bytes)) using (var br = new BinaryReader(ms)) {
+            string riff = new string(br.ReadChars(4));
+            if (riff != "RIFF") return false;
+            br.ReadInt32();
+            string wave = new string(br.ReadChars(4));
+            if (wave != "WAVE") return false;
+            string fmt = new string(br.ReadChars(4));
+            if (fmt != "fmt ") return false;
+            int fmtSize = br.ReadInt32();
+            ushort audioFormat = br.ReadUInt16();
+            ushort channels = br.ReadUInt16();
+            sampleRate = br.ReadInt32();
+            br.ReadInt32(); // byte rate
+            br.ReadUInt16(); // block align
+            ushort bitsPerSample = br.ReadUInt16();
+            ms.Position += fmtSize - 16;
+            string dataId = new string(br.ReadChars(4));
+            while (dataId != "data") {
+                int skip = br.ReadInt32();
+                ms.Position += skip;
+                if (ms.Position + 4 > ms.Length) return false;
+                dataId = new string(br.ReadChars(4));
+            }
+            int dataSize = br.ReadInt32();
+            if (audioFormat != 1 || bitsPerSample != 16 || channels != 1) return false;
+            short[] pcm = new short[dataSize / 2];
+            for (int i = 0; i < pcm.Length; i++) pcm[i] = br.ReadInt16();
+            samples = new float[pcm.Length];
+            for (int i = 0; i < pcm.Length; i++) samples[i] = pcm[i] / 32768f;
+        }
+        return true;
+    }
+
+    private void SendWaveJsonResponse(HttpListenerContext ctx, int status, string msg, string id = null, string prevId = null) {
+        string body;
+        if (prevId != null)
+            body = $"{{\"status\":\"{msg}\",\"prev_id\":\"{prevId}\",\"id\":\"{id}\"}}";
+        else if (id != null)
+            body = $"{{\"status\":\"{msg}\",\"id\":\"{id}\"}}";
+        else
+            body = $"{{\"status\":\"{msg}\"}}";
+        var buf = System.Text.Encoding.UTF8.GetBytes(body);
+        ctx.Response.StatusCode = status;
+        ctx.Response.ContentType = "application/json";
+        ctx.Response.ContentLength64 = buf.Length;
+        try {
+            using (var s = ctx.Response.OutputStream) {
+                s.Write(buf, 0, buf.Length);
+            }
+        } catch (Exception ex) {
+            Debug.LogWarning($"⚠️ SendWaveJsonResponse transport failure: {ex.Message}");
+        }
     }
 
     #endregion
