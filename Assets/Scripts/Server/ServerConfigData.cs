@@ -64,6 +64,15 @@ public class ServerConfigData {
     public int targetFramerate = 60;
     public List<string> allowedRemoteIPs = new List<string> { "127.0.0.1", "::1" };
 
+    // --- Wave Playback ---
+    public bool wavePlaybackEnabled = false;
+    public int  wavePlaybackPort = 50800;
+    public float wavePlaybackVolume = 1.0f;
+    public bool waveSpatializationEnabled = true;
+    public int  wavePayloadMaxBytes = 5000000;
+    public bool waveListenerAutoRestart = true;
+    public int  lipSyncOffsetMs = 0;
+
     public List<FileControlEntry> fileControl = new List<FileControlEntry>();
     public List<AnimationOverride> animations = new List<AnimationOverride>();
     public WindowConfigData window = new WindowConfigData();
