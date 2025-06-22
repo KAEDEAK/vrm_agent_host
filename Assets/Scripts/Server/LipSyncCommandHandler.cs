@@ -26,8 +26,14 @@ public class LipSyncCommandHandler : HttpCommandHandlerBase {
 
         switch (cmd) {
             case "getstatus":
-                responseData.status = 200;
-                responseData.message = new RawJson(_lipSync.GetLipSyncStatusJson());
+                if (!_lipSync.IsInitialized) {
+                    responseData.status = 503;
+                    responseData.message = i18nMsg.RESPONSE_LIPSYNC_NOT_INITIALIZED;
+                }
+                else {
+                    responseData.status = 200;
+                    responseData.message = new RawJson(_lipSync.GetLipSyncStatusJson());
+                }
                 break;
 
             case "audiosync":

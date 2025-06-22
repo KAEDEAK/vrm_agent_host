@@ -195,6 +195,7 @@ public static class i18nMsg {
         /* LipSyncCommandHandler.cs */
         { "RESPONSE_LIPSYNC_ON", "LipSync started on channel {0}!" },
         { "RESPONSE_LIPSYNC_OFF", "LipSync stopped!" },
+        { "RESPONSE_LIPSYNC_NOT_INITIALIZED", "LipSync system is not initialized." },
         { "ERROR_INVALID_LIPSYNC_CMD", "Invalid lip sync command: {0}" },
         /* ServerCommandHandler.cs */
         { "RESPONSE_SERVER_TERMINATE", "Server is shutting down." },
@@ -550,6 +551,7 @@ public static class i18nMsg {
     public static string ERROR_RESPONSE_SEND => GetLocalizedText("ERROR_RESPONSE_SEND", "[HttpCommandHandlerBase] Response sending error: {0}");
     public static string RESPONSE_LIPSYNC_ON => GetLocalizedText("RESPONSE_LIPSYNC_ON", "LipSync started on channel {0}!");
     public static string RESPONSE_LIPSYNC_OFF => GetLocalizedText("RESPONSE_LIPSYNC_OFF", "LipSync stopped!");
+    public static string RESPONSE_LIPSYNC_NOT_INITIALIZED => GetLocalizedText("RESPONSE_LIPSYNC_NOT_INITIALIZED", "LipSync system is not initialized.");
     public static string ERROR_INVALID_LIPSYNC_CMD => GetLocalizedText("ERROR_INVALID_LIPSYNC_CMD", "Invalid lip sync command: {0}");
     public static string RESPONSE_SERVER_TERMINATE => GetLocalizedText("RESPONSE_SERVER_TERMINATE", "Server is shutting down.");
     public static string ERROR_INVALID_SERVER_CMD => GetLocalizedText("ERROR_INVALID_SERVER_CMD", "Invalid server command: {0}");

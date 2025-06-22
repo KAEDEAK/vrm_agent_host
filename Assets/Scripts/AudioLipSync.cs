@@ -67,6 +67,7 @@ public class AudioLipSync : MonoBehaviour {
 
     private VRMLoader vrmLoader;
     private Vrm10RuntimeExpression expression;
+    public bool IsInitialized { get { return expression != null; } }
     private FftProvider fftProvider;
     private float[] fftMagnitudes;
     private const FftSize fftSize = FftSize.Fft1024;
@@ -422,6 +423,7 @@ public class AudioLipSync : MonoBehaviour {
 
     // アクティブな感情表情があるかチェック
     private bool HasActiveEmotionExpression() {
+        if (expression == null) return false;
         foreach (var key in emotionExpressionKeys) {
             if (expression.GetWeight(key) > 0.01f) {
                 return true;
@@ -660,6 +662,7 @@ public class AudioLipSync : MonoBehaviour {
 
     public string GetLipSyncStatusJson() {
         AudioStatusInfo status = new AudioStatusInfo {
+            isInitialized = IsInitialized,
             currentSource = currentSource.ToString(),
             currentBlendMode = currentBlendMode.ToString(),
             currentAutoMode = (currentBlendMode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) ? currentAutoMode.ToString() : null,
@@ -678,6 +681,7 @@ public class AudioLipSync : MonoBehaviour {
 
     [Serializable]
     public class AudioStatusInfo {
+        public bool isInitialized;
         public string currentSource;
         public string currentBlendMode;
         public string currentAutoMode;
