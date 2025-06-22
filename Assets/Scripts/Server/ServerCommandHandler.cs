@@ -10,7 +10,8 @@ using System.Runtime.InteropServices; // ★Win32API呼び出しに使う
 public class ServerCommandHandler : HttpCommandHandlerBase {
     // 許可コマンド一覧（追加・拡張があればここに追記）
     private static readonly string[] AllowedCommands = {
-        "transparent", "allowDragObjects", "stayOnTop", "getstatus", "terminate"
+        "transparent", "allowDragObjects", "stayOnTop", "getstatus", "terminate",
+        "waveplay_start", "waveplay_stop", "waveplay_status"
     };
 
     // ★Win32 API 用：GetWindowRect / GetSystemMetrics
@@ -136,6 +137,36 @@ public class ServerCommandHandler : HttpCommandHandlerBase {
                         responseData.status = 500;
                         responseData.message = "TransparentWindow component not found.";
                     }
+                    SendResponse(context, responseData);
+                    break;
+                }
+
+            case "waveplay_start": {
+                    WavePlaybackListener.Instance?.StartListener();
+                    responseData.status = 200;
+                    responseData.message = new Dictionary<string, object> {
+                        {"status", "started"},
+                        {"port", ServerConfig.Instance.wavePlaybackPort}
+                    };
+                    SendResponse(context, responseData);
+                    break;
+                }
+
+            case "waveplay_stop": {
+                    WavePlaybackListener.Instance?.StopListener();
+                    responseData.status = 200;
+                    responseData.message = new Dictionary<string, object> {{"status","stopped"}};
+                    SendResponse(context, responseData);
+                    break;
+                }
+
+            case "waveplay_status": {
+                    bool running = WavePlaybackListener.Instance?.IsRunning ?? false;
+                    responseData.status = 200;
+                    responseData.message = new Dictionary<string, object> {
+                        {"status", running ? "running" : "stopped"},
+                        {"port", ServerConfig.Instance.wavePlaybackPort}
+                    };
                     SendResponse(context, responseData);
                     break;
                 }

@@ -122,6 +122,10 @@ public class AnimationServer : MonoBehaviour {
         var vrmLoader = UnityEngine.Object.FindAnyObjectByType<VRMLoader>();
         var lipSync = UnityEngine.Object.FindAnyObjectByType<AudioLipSync>();
         var imageLoader = UnityEngine.Object.FindAnyObjectByType<LocalImageLoader>();
+        var waveListener = UnityEngine.Object.FindAnyObjectByType<WavePlaybackListener>();
+        if (waveListener == null) {
+            waveListener = new GameObject("WavePlaybackListener").AddComponent<WavePlaybackListener>();
+        }
 
         // コマンドごとにハンドラを登録
         commandHandlers = new Dictionary<string, IHttpCommandHandler> {

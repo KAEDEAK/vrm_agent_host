@@ -79,6 +79,14 @@ public class ServerConfig {
     public bool autoPrepareSeamless = false;
     public bool vsync = true;
     public int targetFramerate = 60;
+    // --- Wave Playback ---
+    public bool wavePlaybackEnabled = false;
+    public int  wavePlaybackPort = 50800;
+    public float wavePlaybackVolume = 1.0f;
+    public bool waveSpatializationEnabled = true;
+    public int  wavePayloadMaxBytes = 5000000;
+    public bool waveListenerAutoRestart = true;
+    public int  lipSyncOffsetMs = 0;
     public List<FileControlEntry> fileControl = new List<FileControlEntry>();
 
     [SerializeField] private CameraConfigData camera = new CameraConfigData();
@@ -218,6 +226,13 @@ public class ServerConfig {
             autoPrepareSeamless = data.autoPrepareSeamless;
             vsync = data.vsync;
             targetFramerate = data.targetFramerate;
+            wavePlaybackEnabled = data.wavePlaybackEnabled;
+            wavePlaybackPort = data.wavePlaybackPort;
+            wavePlaybackVolume = data.wavePlaybackVolume;
+            waveSpatializationEnabled = data.waveSpatializationEnabled;
+            wavePayloadMaxBytes = data.wavePayloadMaxBytes;
+            waveListenerAutoRestart = data.waveListenerAutoRestart;
+            lipSyncOffsetMs = data.lipSyncOffsetMs;
             fileControl = data.fileControl;
             window = data.window;
             camera = data.camera;

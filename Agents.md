@@ -46,9 +46,9 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
 ────────────────────────────────────────
 
 3.1 WAVE受信エンドポイント
-F-1  リスナーは wavePlaybackEnabled == true でのみ起動する。
-F-2  デフォルトポートは 50800。Config の wavePlaybackPort で変更可能。
-F-3  POST /waveplay      (専用ポート配下 ルートまたは /waveplay パス許容)
+[Implemented] F-1  リスナーは wavePlaybackEnabled == true でのみ起動する。
+[Implemented] F-2  デフォルトポートは 50800。Config の wavePlaybackPort で変更可能。
+[Implemented] F-3  POST /waveplay      (専用ポート配下 ルートまたは /waveplay パス許容)
       ヘッダー:
         Content-Type     : audio/wav  (必須)
         X-Audio-ID       : 文字列     (任意)
@@ -56,11 +56,11 @@ F-3  POST /waveplay      (専用ポート配下 ルートまたは /waveplay パ
         X-Speaker        : 任意文字列 (将来拡張)
         X-Spatial        : y/n        (任意、既定 config)
       本体   : RIFF/WAVE モノラル 16bit 48kHz
-F-4  本体サイズが wavePayloadMaxBytes (既定 5 000 000 bytes) を超える場合
+[Implemented] F-4  本体サイズが wavePayloadMaxBytes (既定 5 000 000 bytes) を超える場合
       → 413 Payload Too Large。
-F-5  正常完了    : 200 OK
+[Implemented] F-5  正常完了    : 200 OK
       ボディ JSON : { "status":"ok", "id":"<X-Audio-ID>" }
-F-6  バリデーションエラー:
+[Implemented] F-6  バリデーションエラー:
       • Content-Type 不正         → 415 Unsupported Media Type
       • WAV 解析失敗             → 422 Unprocessable Entity
       • リスナー busy (再生中)    → 409 Conflict  (下記 F-10 参照)
@@ -68,7 +68,7 @@ F-6  バリデーションエラー:
       ボディ JSON : { "error":"<code>", "detail":"..." }
 
 3.2 WAVEリスナー制御 API
-F-7  GET /server/waveplay/start
+[Implemented] F-7  GET /server/waveplay/start
       – リスナー未起動なら起動し 200 OK
         { "status":"started", "port":50800 }
       – 既に起動中なら 200 OK
@@ -76,48 +76,48 @@ F-7  GET /server/waveplay/start
       – ポート競合などで起動失敗 → 409 Conflict
         { "error":"port_in_use", "port":50800 }
 
-F-8  GET /server/waveplay/stop
+[Implemented] F-8  GET /server/waveplay/stop
       – リスナー停止し 200 OK { "status":"stopped" }
       – 既に停止中なら { "status":"already_stopped" }
 
-F-9  GET /server/waveplay/status
+[Implemented] F-9  GET /server/waveplay/status
       – 200 OK { "status":"running"|"stopped", "port":50800 }
 
-F-10 同時リクエスト処理方針
+[Hold] F-10 同時リクエスト処理方針
       • wavePlaybackConcurrency = "interrupt" 固定
         - 新リクエストが来た時点で再生中を停止し上書き再生
         - API 応答: 200 OK { "status":"interrupted","prev_id":"xxx","id":"yyy" }
       • busy を拒否するモードは将来 wavePlaybackConcurrency = "reject" で検討
 
-F-11 GET /server/waveplay/ping
+[Hold] F-11 GET /server/waveplay/ping
       – リスナー稼働時: { "status":"running", "latency_ms":<int> }
       – Stop状態      : { "status":"stopped" }
 
-F-12 GET /server/reload_config
+[Hold] F-12 GET /server/reload_config
       – ServerConfig.json を再読込。成功 200 OK { "status":"reloaded" }
 
 3.3 WAVE音声再生
-P-1  AudioSource: WavePlaybackSource (専用)
-P-2  AudioClip.Create にてメモリロード。再生開始まで ≤80 ms
-P-3  音量 = wavePlaybackVolume × X-Volume
-P-4  SpatialBlend:
+[Implemented] P-1  AudioSource: WavePlaybackSource (専用)
+[Implemented] P-2  AudioClip.Create にてメモリロード。再生開始まで ≤80 ms
+[Implemented] P-3  音量 = wavePlaybackVolume × X-Volume
+[Implemented] P-4  SpatialBlend:
       true  → 1.0、false → 0.0
       MinDistance=1, MaxDistance=15, Spread=0 (変更可)
-P-5  再生完了または中断時に Log レコード + Telemetry 1 イベント送信
-P-6  自動再起動: リスナーが例外終了した場合
+[Hold] P-5  再生完了または中断時に Log レコード + Telemetry 1 イベント送信
+[Hold] P-6  自動再起動: リスナーが例外終了した場合
       – autoRestart=true(default) なら 1 s 後にリトライ (最大5回)
       – false なら停止したまま。/start を再呼び出し。
 
 3.4 リップシンク連動
-L-1  LipSync Input Channels:
+[Hold] L-1  LipSync Input Channels:
       0: WavePlayback
       1: ExternalAudio
       2: Microphone
-L-2  WavePlaybackSource.AudioClip の RMS 値を 10 ms ごとに計測し
+[Hold] L-2  WavePlaybackSource.AudioClip の RMS 値を 10 ms ごとに計測し
       既存リップシンクドライバに入力。
-L-3  lipSyncOffsetMs (-100〜+100, 既定 0) で位相補正可能。
+[Hold] L-3  lipSyncOffsetMs (-100〜+100, 既定 0) で位相補正可能。
 
-3.5 ServerConfig 追加項目
+[Implemented] 3.5 ServerConfig 追加項目
 {
   "wavePlaybackEnabled"        : false,
   "wavePlaybackPort"           : 50800,
