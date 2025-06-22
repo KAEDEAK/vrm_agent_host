@@ -755,6 +755,8 @@ public class AnimationServer : MonoBehaviour {
         string audioId = context.Request.Headers["X-Audio-ID"];
         if (string.IsNullOrEmpty(audioId)) audioId = Guid.NewGuid().ToString();
 
+        Debug.Log($"[Wave] playback request id={audioId} length={len}");
+
         float volume = 1.0f;
         string volHeader = context.Request.Headers["X-Volume"];
         if (!string.IsNullOrEmpty(volHeader) && float.TryParse(volHeader, out float vol)) {
