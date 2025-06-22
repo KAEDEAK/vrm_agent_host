@@ -56,7 +56,10 @@ public class WavePlaybackListener : MonoBehaviour {
         if (lipSync == null) lipSync = GameObject.FindObjectOfType<AudioLipSync>();
         int port = ServerConfig.Instance.wavePlaybackPort;
         listener = new HttpListener();
-        listener.Prefixes.Add($"http://+:{port}/");
+        // Use explicit localhost bindings to avoid URL ACL permissions issues
+        listener.Prefixes.Add($"http://localhost:{port}/");
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Prefixes.Add($"http://[::1]:{port}/");
         try {
             listener.Start();
         } catch (Exception e) {
