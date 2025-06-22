@@ -86,25 +86,50 @@ public class WavePlaybackListener : MonoBehaviour {
             SendJson(context, 405, "method_not_allowed");
             return;
         }
+
+        string path = context.Request.Url.AbsolutePath;
+        if (!(string.IsNullOrEmpty(path) || path == "/" || path == "/waveplay")) {
+            SendJson(context, 404, "not_found");
+            return;
+        }
+
         if (!context.Request.ContentType?.StartsWith("audio/wav") ?? true) {
             SendJson(context, 415, "unsupported_media_type");
             return;
         }
+
         long len = context.Request.ContentLength64;
         int max = ServerConfig.Instance.wavePayloadMaxBytes;
         if (len <= 0 || len > max) {
             SendJson(context, 413, "payload_too_large");
             return;
         }
+
+        string audioId = context.Request.Headers["X-Audio-ID"];
+        if (string.IsNullOrEmpty(audioId)) audioId = Guid.NewGuid().ToString();
+
+        float volume = 1.0f;
+        string volHeader = context.Request.Headers["X-Volume"];
+        if (!string.IsNullOrEmpty(volHeader) && float.TryParse(volHeader, out float vol)) {
+            volume = Mathf.Clamp(vol, 0f, 2f);
+        }
+
+        bool? spatialOverride = null;
+        string spatialHeader = context.Request.Headers["X-Spatial"];
+        if (!string.IsNullOrEmpty(spatialHeader)) {
+            spatialOverride = spatialHeader.ToLower() == "y" || spatialHeader.ToLower() == "yes";
+        }
+
         byte[] data;
         using (var ms = new MemoryStream()) {
             context.Request.InputStream.CopyTo(ms);
             data = ms.ToArray();
         }
-        MainThreadInvoker.Invoke(() => PlayWave(data, context));
+
+        MainThreadInvoker.Invoke(() => PlayWave(data, context, audioId, volume, spatialOverride));
     }
 
-    private void PlayWave(byte[] data, HttpListenerContext context) {
+    private void PlayWave(byte[] data, HttpListenerContext context, string audioId, float headerVolume, bool? spatialOverride) {
         if (audioSource == null) {
             var go = new GameObject("WavePlaybackSource");
             audioSource = go.AddComponent<AudioSource>();
@@ -116,11 +141,13 @@ public class WavePlaybackListener : MonoBehaviour {
             }
             var clip = AudioClip.Create("wave", samples.Length, 1, sampleRate, false);
             clip.SetData(samples, 0);
-            audioSource.spatialBlend = ServerConfig.Instance.waveSpatializationEnabled ? 1f : 0f;
-            audioSource.volume = ServerConfig.Instance.wavePlaybackVolume;
+            bool spatial = spatialOverride ?? ServerConfig.Instance.waveSpatializationEnabled;
+            audioSource.spatialBlend = spatial ? 1f : 0f;
+            float baseVol = ServerConfig.Instance.wavePlaybackVolume;
+            audioSource.volume = baseVol * headerVolume;
             audioSource.clip = clip;
             audioSource.Play();
-            SendJson(context, 200, "ok");
+            SendJson(context, 200, "ok", audioId);
         } catch (Exception e) {
             Debug.LogError($"[Wave] playback error: {e.Message}");
             SendJson(context, 500, "internal_error");
@@ -164,8 +191,12 @@ public class WavePlaybackListener : MonoBehaviour {
         return true;
     }
 
-    private void SendJson(HttpListenerContext ctx, int status, string msg) {
-        var body = $"{{\"status\":\"{msg}\"}}";
+    private void SendJson(HttpListenerContext ctx, int status, string msg, string id = null) {
+        string body;
+        if (id != null)
+            body = $"{{\"status\":\"{msg}\",\"id\":\"{id}\"}}";
+        else
+            body = $"{{\"status\":\"{msg}\"}}";
         var buf = System.Text.Encoding.UTF8.GetBytes(body);
         ctx.Response.StatusCode = status;
         ctx.Response.ContentType = "application/json";
