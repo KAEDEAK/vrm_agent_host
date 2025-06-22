@@ -4,6 +4,8 @@ TO="D:\dev\unity\general_vroid_chat_avator\VRMAgentHost"
 [FILES]
 
 Assets\Scripts\*.cs
+Assets\Scripts\Server\*.cs
+Assets\Scripts\Shadow\*.cs
 Assets\Resources\*.json
 Assets\Resources\*.txt
 Assets\Resources\*.html
