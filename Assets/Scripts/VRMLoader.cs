@@ -6,8 +6,17 @@ using UnityEngine;
 using UniVRM10;
 
 public class VRMLoader : MonoBehaviour {
+    public static VRMLoader Instance { get; private set; }
     public GameObject LoadedModel { get; private set; }
     public Vrm10Instance VrmInstance { get; private set; }
+
+    private void Awake() {
+        Instance = this;
+    }
+
+    private void OnDestroy() {
+        if (Instance == this) Instance = null;
+    }
 
     public delegate void VRMLoadCompleteHandler(GameObject model);
     public event VRMLoadCompleteHandler OnVRMLoadComplete;
