@@ -115,6 +115,7 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
 [Implemented] L-2  WavePlaybackSource.AudioClip の RMS 値を 10 ms ごとに計測し
       既存リップシンクドライバに入力。
 [Implemented] L-3  lipSyncOffsetMs (-100〜+100, 既定 0) で位相補正可能。
+[Implemented] L-4  FFT解析に基づく口形状制御を追加 (LipSyncFFTProcessor)
 
 [Implemented] 3.5 ServerConfig 追加項目
 {
