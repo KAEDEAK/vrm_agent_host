@@ -10,6 +10,7 @@ using System.Threading;
 using UnityEngine;
 using System.Text.RegularExpressions;
 using System.Linq;
+using UniVRM10;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -51,6 +52,7 @@ public class AnimationServer : MonoBehaviour {
     private string currentAudioId;
     private float playStartTime;
     private AudioLipSync lipSync;
+    private LipSyncFFTProcessor lipSyncFft;
     private readonly System.Collections.Generic.Queue<WaveItem> waveQueue = new System.Collections.Generic.Queue<WaveItem>();
     private string lastConcurrency;
 
@@ -141,6 +143,7 @@ public class AnimationServer : MonoBehaviour {
         var animationHandler = UnityEngine.Object.FindAnyObjectByType<AnimationHandler>();
         var vrmLoader = UnityEngine.Object.FindAnyObjectByType<VRMLoader>();
         this.lipSync = UnityEngine.Object.FindAnyObjectByType<AudioLipSync>();
+        this.lipSyncFft = UnityEngine.Object.FindAnyObjectByType<LipSyncFFTProcessor>();
         var imageLoader = UnityEngine.Object.FindAnyObjectByType<LocalImageLoader>();
 
         // コマンドごとにハンドラを登録
@@ -816,6 +819,8 @@ public class AnimationServer : MonoBehaviour {
             audioSource = go.AddComponent<AudioSource>();
         }
         if (lipSync == null) lipSync = GameObject.FindObjectOfType<AudioLipSync>();
+        if (lipSyncFft == null) lipSyncFft = GameObject.FindObjectOfType<LipSyncFFTProcessor>();
+        if (lipSyncFft != null) lipSyncFft.targetAudioSource = audioSource;
         
         try {
             if (!TryParseWav(data, out float[] samples, out int sampleRate)) {
@@ -833,6 +838,8 @@ public class AnimationServer : MonoBehaviour {
                 prevId = currentAudioId;
                 audioSource.Stop();
                 if (playbackRoutine != null) StopCoroutine(playbackRoutine);
+                lipSync?.FeedWaveRms(0f);
+                lipSyncFft?.ResetMouth();
                 Telemetry.LogEvent("wave_interrupt", new System.Collections.Generic.Dictionary<string, object>{{"old_id", prevId},{"new_id", audioId}});
             }
             audioSource.volume = baseVol * headerVolume;
@@ -868,6 +875,8 @@ public class AnimationServer : MonoBehaviour {
             nextTime += 0.01f;
         }
         lipSync?.FeedWaveRms(0f);
+        var expr = VRMLoader.Instance?.VrmInstance?.Runtime?.Expression;
+        if (expr != null) expr.SetWeight(ExpressionKey.Aa, 0f);
         Telemetry.LogEvent("wave_complete", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"duration_ms", (int)((Time.time - playStartTime)*1000)}});
         currentAudioId = null;
         playbackRoutine = null;
