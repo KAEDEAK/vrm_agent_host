@@ -11,11 +11,12 @@ using System;
 using System.Collections.Generic;
 
 public class AudioLipSync : MonoBehaviour {
-    private const int WAVE_CHANNEL_ID = 0;
-    private const int EXTERNAL_CHANNEL_ID = 1; // WASAPI
+    private const int WAVE_CHANNEL_ID = 0;                 // WavePlayback (Real-time AudioSource)
+    private const int EXTERNAL_CHANNEL_ID = 1;             // WASAPI
     private const int MICROPHONE_CHANNEL_ID = 2;
-    private const int REALTIME_AUDIOSOURCE_CHANNEL_ID = 3; // Real-time AudioSource capture
-    private enum LipSyncSource { None, WavePlayback, External, Microphone, RealtimeAudioSource }
+
+    // WavePlayback channel now captures audio directly from AudioSource
+    private enum LipSyncSource { None, WavePlayback, External, Microphone }
     private LipSyncSource currentSource = LipSyncSource.None;
 
     // LipSync Blend Mode System
@@ -259,7 +260,6 @@ public class AudioLipSync : MonoBehaviour {
         if (currentSource == LipSyncSource.WavePlayback) rms = waveRms;
         else if (currentSource == LipSyncSource.External) rms = wasapiVolume;
         else if (currentSource == LipSyncSource.Microphone) rms = GetMicrophoneVolume();
-        else if (currentSource == LipSyncSource.RealtimeAudioSource) rms = waveRms; // AudioSourceLipSyncCaptureが同じFeedWaveRmsを使用
         float scaled = Mathf.Clamp01(rms * scaleMultiplier);
 
         // AUTO モードの処理
@@ -495,12 +495,6 @@ public class AudioLipSync : MonoBehaviour {
         }
     }
 
-    private void StartLipSyncWave() {
-        isLipSyncActive = true;
-        currentSource = LipSyncSource.WavePlayback;
-        Debug.Log("Wave playback lip sync started.");
-    }
-
     private void StartLipSyncWASAPI() {
         try {
             wasapiCapture = new WasapiLoopbackCapture();
@@ -520,23 +514,23 @@ public class AudioLipSync : MonoBehaviour {
         }
     }
 
-    private void StartLipSyncRealtimeAudioSource() {
-        // リアルタイムAudioSourceキャプチャモードを開始
+    private void StartLipSyncWavePlayback() {
+        // WavePlayback uses real-time AudioSource capture.
         // 実際のキャプチャはAudioSourceLipSyncCaptureコンポーネントが行う
         
         // FFTProviderを初期化（他のモードと同様）
         fftProvider = new FftProvider(1, fftSize);
         fftMagnitudes = new float[(int)fftSize];
         
-        // RealtimeAudioSourceモードではデフォルトでより高いスケール値を使用
+        // WavePlaybackモードではデフォルトでより高いスケール値を使用
         if (scaleMultiplier <= 3.0f) {
             scaleMultiplier = 15.0f; // デフォルトを15に設定（30の半分で調整しやすく）
-            Debug.Log($"[AudioLipSync] RealtimeAudioSource mode: scale multiplier adjusted to {scaleMultiplier}");
+            Debug.Log($"[AudioLipSync] WavePlayback mode: scale multiplier adjusted to {scaleMultiplier}");
         }
         
         isLipSyncActive = true;
-        currentSource = LipSyncSource.RealtimeAudioSource;
-        Debug.Log("[AudioLipSync] Real-time AudioSource capture lip sync started with FFT provider.");
+        currentSource = LipSyncSource.WavePlayback;
+        Debug.Log("[AudioLipSync] WavePlayback lip sync started with FFT provider.");
     }
 
     private void WasapiCapture_DataAvailable(object sender, DataAvailableEventArgs e) {
@@ -563,9 +557,9 @@ public class AudioLipSync : MonoBehaviour {
         waveRms = rms;
     }
 
-    // RealtimeAudioSource用のFFTデータ受信メソッド
+    // WavePlayback用のFFTデータ受信メソッド
     public void FeedFFTData(float sample) {
-        if (currentSource == LipSyncSource.RealtimeAudioSource && fftProvider != null) {
+        if (currentSource == LipSyncSource.WavePlayback && fftProvider != null) {
             fftProvider.Add(sample, 0);
         }
     }
@@ -589,16 +583,14 @@ public class AudioLipSync : MonoBehaviour {
         expression = vrmLoader.VrmInstance.Runtime.Expression;
 
         if (channel == WAVE_CHANNEL_ID) {
-            StartLipSyncWave();
+            // WavePlayback uses real-time AudioSource capture
+            StartLipSyncWavePlayback();
         }
         else if (channel == EXTERNAL_CHANNEL_ID) {
             StartLipSyncWASAPI();
         }
         else if (channel == MICROPHONE_CHANNEL_ID) {
             StartLipSyncMic();
-        }
-        else if (channel == REALTIME_AUDIOSOURCE_CHANNEL_ID) {
-            StartLipSyncRealtimeAudioSource();
         }
         else {
             Debug.LogError(string.Format(i18nMsg.AUDIOSYNC_INVALID_CHANNEL, channel));
@@ -617,9 +609,6 @@ public class AudioLipSync : MonoBehaviour {
             wasapiCapture = null;
         }
         else if (currentSource == LipSyncSource.WavePlayback) {
-            waveRms = 0f;
-        }
-        else if (currentSource == LipSyncSource.RealtimeAudioSource) {
             waveRms = 0f; // AudioSourceLipSyncCaptureが自動的にクリーンアップ
         }
 
@@ -695,8 +684,7 @@ public class AudioLipSync : MonoBehaviour {
             {
                 new AudioChannelInfo() { id = WAVE_CHANNEL_ID, name = "WavePlayback" },
                 new AudioChannelInfo() { id = EXTERNAL_CHANNEL_ID, name = "ExternalAudio" },
-                new AudioChannelInfo() { id = MICROPHONE_CHANNEL_ID, name = "Microphone" },
-                new AudioChannelInfo() { id = REALTIME_AUDIOSOURCE_CHANNEL_ID, name = "RealtimeAudioSource" }
+                new AudioChannelInfo() { id = MICROPHONE_CHANNEL_ID, name = "Microphone" }
             }
         };
         return JsonUtility.ToJson(status);
