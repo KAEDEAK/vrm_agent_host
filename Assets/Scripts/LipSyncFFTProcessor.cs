@@ -4,6 +4,32 @@ using UniVRM10;
 public class LipSyncFFTProcessor : MonoBehaviour {
     public AudioSource targetAudioSource;
     private float[] spectrum = new float[256];
+    private VRMLoader vrmLoader;
+    private Vrm10RuntimeExpression expression;
+
+    private void Start() {
+        vrmLoader = FindAnyObjectByType<VRMLoader>();
+        if (vrmLoader != null) {
+            vrmLoader.OnVRMLoadComplete += OnModelLoaded;
+            // 既にモデルがロードされている場合
+            if (vrmLoader.VrmInstance?.Runtime?.Expression != null) {
+                expression = vrmLoader.VrmInstance.Runtime.Expression;
+            }
+        }
+    }
+
+    private void OnDestroy() {
+        if (vrmLoader != null) {
+            vrmLoader.OnVRMLoadComplete -= OnModelLoaded;
+        }
+    }
+
+    private void OnModelLoaded(GameObject vrmModel) {
+        if (vrmLoader?.VrmInstance?.Runtime?.Expression != null) {
+            expression = vrmLoader.VrmInstance.Runtime.Expression;
+            Debug.Log("[LipSyncFFTProcessor] VRM expression system connected");
+        }
+    }
 
     void Update() {
         if (targetAudioSource != null && targetAudioSource.isPlaying) {
@@ -20,14 +46,14 @@ public class LipSyncFFTProcessor : MonoBehaviour {
     }
 
     private void ApplyMouthExpression(float w) {
-        var expr = VRMLoader.Instance?.VrmInstance?.Runtime?.Expression;
-        if (expr != null) {
-            expr.SetWeight(ExpressionKey.Aa, w);
+        if (expression != null) {
+            expression.SetWeight(ExpressionKey.Aa, w);
         }
     }
 
     public void ResetMouth() {
-        var expr = VRMLoader.Instance?.VrmInstance?.Runtime?.Expression;
-        if (expr != null) expr.SetWeight(ExpressionKey.Aa, 0f);
+        if (expression != null) {
+            expression.SetWeight(ExpressionKey.Aa, 0f);
+        }
     }
 }

@@ -11,14 +11,7 @@
   "_outputFilters_note": "Keywords defined here will not appear in getstatus responses.",
   "autoPrepareSeamless": false,
   "vsync": false,
-  "targetFramerate": 60,
-  "wavePlaybackEnabled": false,
-  "wavePlaybackVolume": 1.0,
-  "waveSpatializationEnabled": true,
-  "wavePayloadMaxBytes": 5000000,
-  "waveListenerAutoRestart": true,
-  "lipSyncOffsetMs": 0,
-  "wavePlaybackConcurrency": "interrupt",
+  "targetFramerate": 60,    
   "shadows": {
     "shadowStrength": 0.8,
     "shadowBias": 0.02,
@@ -33,7 +26,20 @@
       { "key": "Aa", "range": [500, 2000] },
       { "key": "Ih", "range": [2000, 2800] },
       { "key": "Ee", "range": [2800, 3000] }
-    ]
+    ],
+    "syncOffsetMs": 0.0,
+    "syncPredictMs": 0.0,
+    "enableSyncOptimization": true
+  },
+  "wave_playback": {
+    "enabled": true,
+    "port": 34560,
+    "endpoint": "/waveplay/",
+    "playback_mode": "immediate",
+    "queue_max_size": 10,
+    "allow_mode_change": true,
+    "_playback_mode_note": "queue (順次再生), reject (再生中は拒否), immediate (即時再生・中断)",
+    "_note": "Wave playback functionality for audio streaming and LipSync"
   },
   "camera": {
     "orthographic":false,

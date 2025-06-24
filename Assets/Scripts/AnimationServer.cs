@@ -10,10 +10,22 @@ using System.Threading;
 using UnityEngine;
 using System.Text.RegularExpressions;
 using System.Linq;
-using UniVRM10;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
+
+[System.Serializable]
+public class WaveAudioData {
+    public string audioId;
+    public byte[] waveData;
+    public float timestamp;
+    
+    public WaveAudioData(string id, byte[] data) {
+        audioId = id;
+        waveData = data;
+        timestamp = Time.time;
+    }
+}
 
 public class AnimationServer : MonoBehaviour {
     public static AnimationServer Instance { get; private set; }
@@ -46,23 +58,11 @@ public class AnimationServer : MonoBehaviour {
     // target=xxx で振り分ける各種コマンドハンドラ
     private Dictionary<string, IHttpCommandHandler> commandHandlers;
 
-    // Wave playback functionality
-    private AudioSource audioSource;
-    private Coroutine playbackRoutine;
-    private string currentAudioId;
-    private float playStartTime;
-    private AudioLipSync lipSync;
-    private LipSyncFFTProcessor lipSyncFft;
-    private readonly System.Collections.Generic.Queue<WaveItem> waveQueue = new System.Collections.Generic.Queue<WaveItem>();
-    private string lastConcurrency;
-
-    private class WaveItem {
-        public byte[] data;
-        public HttpListenerContext context;
-        public string id;
-        public float volume;
-        public bool? spatial;
-    }
+    // WAVE再生管理
+    private Queue<WaveAudioData> audioQueue = new Queue<WaveAudioData>();
+    private string currentPlaybackMode = "immediate";
+    private bool isCurrentlyPlaying = false;
+    private string currentAudioId = "";
 
     #region sanitize
 
@@ -102,11 +102,8 @@ public class AnimationServer : MonoBehaviour {
 #endif
         Instance = this;
         Application.runInBackground = true;
-        // Play mode でのみ設定をロード
-        if (Application.isPlaying) {
-            LoadConfig();  // ServerConfig.Instance から設定をロード
-            i18nMsg.InitializeLocalization();
-        }
+        LoadConfig();  // ServerConfig.Instance から設定をロード
+        i18nMsg.InitializeLocalization();
     }
 
 #if UNITY_EDITOR
@@ -142,8 +139,7 @@ public class AnimationServer : MonoBehaviour {
         // 各コンポーネント取得
         var animationHandler = UnityEngine.Object.FindAnyObjectByType<AnimationHandler>();
         var vrmLoader = UnityEngine.Object.FindAnyObjectByType<VRMLoader>();
-        this.lipSync = UnityEngine.Object.FindAnyObjectByType<AudioLipSync>();
-        this.lipSyncFft = UnityEngine.Object.FindAnyObjectByType<LipSyncFFTProcessor>();
+        var lipSync = UnityEngine.Object.FindAnyObjectByType<AudioLipSync>();
         var imageLoader = UnityEngine.Object.FindAnyObjectByType<LocalImageLoader>();
 
         // コマンドごとにハンドラを登録
@@ -190,15 +186,65 @@ public class AnimationServer : MonoBehaviour {
 
     #endregion
 
+    #region ヘルパーメソッド
+
+    /// <summary>
+    /// 型名でコンポーネントを検索
+    /// </summary>
+    private MonoBehaviour FindComponentByTypeName(string typeName) {
+        var allComponents = UnityEngine.Object.FindObjectsOfType<MonoBehaviour>();
+        foreach (var component in allComponents) {
+            if (component.GetType().Name == typeName) {
+                return component;
+            }
+        }
+        return null;
+    }
+
+    #endregion
+
+    #region 音声コンポーネント初期化
+
+    /// <summary>
+    /// 音声関連コンポーネント（AudioChannelManager、WavePlaybackHandler、FFTAnalysisChannel）を確実に初期化
+    /// </summary>
+    private void EnsureAudioComponents() {
+        // AudioChannelManagerの初期化
+        var audioChannelManager = UnityEngine.Object.FindAnyObjectByType<AudioChannelManager>();
+        if (audioChannelManager == null) {
+            GameObject audioManagerGO = new GameObject("AudioChannelManager");
+            audioManagerGO.AddComponent<AudioChannelManager>();
+            Debug.Log("[AnimationServer] AudioChannelManager を作成しました");
+        }
+
+        // WavePlaybackHandlerの初期化
+        MonoBehaviour wavePlaybackHandler = FindComponentByTypeName("WavePlaybackHandler");
+        if (wavePlaybackHandler == null) {
+            GameObject waveHandlerGO = new GameObject("WavePlaybackHandler");
+            var waveHandlerType = System.Type.GetType("WavePlaybackHandler");
+            if (waveHandlerType != null) {
+                waveHandlerGO.AddComponent(waveHandlerType);
+                Debug.Log("[AnimationServer] WavePlaybackHandler を作成しました");
+            }
+        }
+
+        // FFTAnalysisChannelの初期化
+        var fftAnalysisChannel = UnityEngine.Object.FindAnyObjectByType<FFTAnalysisChannel>();
+        if (fftAnalysisChannel == null) {
+            GameObject fftChannelGO = new GameObject("FFTAnalysisChannel");
+            fftChannelGO.AddComponent<FFTAnalysisChannel>();
+            Debug.Log("[AnimationServer] FFTAnalysisChannel を作成しました");
+        }
+
+        Debug.Log("[AnimationServer] 音声コンポーネントの初期化完了");
+    }
+
+    #endregion
+
     #region サーバー起動／停止・リスナー処理
 
     private void LoadConfig() {
         var config = ServerConfig.Instance;
-        if (config == null) {
-            Debug.LogWarning("[AnimationServer] ServerConfig.Instance is null, using default values");
-            return;
-        }
-        
         httpPort = config.httpPort != 0 ? config.httpPort : 34560;
         httpsPort = config.httpsPort != 0 ? config.httpsPort : 34561;
         useHttp = config.useHttp;
@@ -209,7 +255,13 @@ public class AnimationServer : MonoBehaviour {
         vsync = config.vsync;
         targetFramerate = config.targetFramerate;
 
-        Debug.Log($"[DEBUG] listenLocalhostOnly = {config.listenLocalhostOnly}");
+        // WAVE再生設定を読み込み
+        if (config.wave_playback != null) {
+            currentPlaybackMode = config.wave_playback.playback_mode ?? "immediate";
+        }
+
+        Debug.Log($"[DEBUG] listenLocalhostOnly = {ServerConfig.Instance.listenLocalhostOnly}");
+        Debug.Log($"[DEBUG] Wave playback mode = {currentPlaybackMode}");
     }
 
     private void StartServer() {
@@ -381,11 +433,6 @@ public class AnimationServer : MonoBehaviour {
     private bool IsIpAllowed(string remoteIP) {
         IPAddress remoteAddress = IPAddress.Parse(remoteIP);
         var config = ServerConfig.Instance;
-        
-        // configがnullの場合はlocalhostのみ許可
-        if (config == null) {
-            return IPAddress.IsLoopback(remoteAddress);
-        }
 
         // 許可されたIPリストが空なら localhost(127.0.0.1, ::1) のみ許可
         if (config.allowedRemoteIPs == null || config.allowedRemoteIPs.Count == 0)
@@ -566,14 +613,9 @@ public class AnimationServer : MonoBehaviour {
             return;
         }
 
-        // Wave playback endpoint
+        // /waveplay/ エンドポイントの処理
         if (urlPath == "/waveplay" || urlPath.StartsWith("/waveplay/")) {
-            var config = ServerConfig.Instance;
-            if (config != null && config.wavePlaybackEnabled) {
-                HandleWavePlaybackRequest(context);
-            } else {
-                SendJsonResponse(context, 503, "Wave playback is disabled");
-            }
+            HandleWavePlayback(context);
             return;
         }
 
@@ -723,224 +765,452 @@ public class AnimationServer : MonoBehaviour {
 
     #endregion
 
-    #region Wave Playback Handling
+    #region WAVE再生処理
 
-    private void HandleWavePlaybackRequest(HttpListenerContext context) {
-        if (context.Request.HttpMethod == "GET" && context.Request.Url.AbsolutePath == "/waveplay/ping") {
-            SendWaveJsonResponse(context, 200, "ok");
-            return;
-        }
-        
-        if (context.Request.HttpMethod != "POST") {
-            SendWaveJsonResponse(context, 405, "method_not_allowed");
-            return;
-        }
-
-        string path = context.Request.Url.AbsolutePath;
-        if (!(string.IsNullOrEmpty(path) || path == "/waveplay" || path == "/waveplay/")) {
-            SendWaveJsonResponse(context, 404, "not_found");
-            return;
-        }
-
-        if (!context.Request.ContentType?.StartsWith("audio/wav") ?? true) {
-            SendWaveJsonResponse(context, 415, "unsupported_media_type");
-            return;
-        }
-
-        long len = context.Request.ContentLength64;
-        var config = ServerConfig.Instance;
-        int max = config?.wavePayloadMaxBytes ?? 5000000;
-        if (len <= 0 || len > max) {
-            SendWaveJsonResponse(context, 413, "payload_too_large");
-            return;
-        }
-
-        string audioId = context.Request.Headers["X-Audio-ID"];
-        if (string.IsNullOrEmpty(audioId)) audioId = Guid.NewGuid().ToString();
-
-        Debug.Log($"[Wave] playback request id={audioId} length={len}");
-
-        float volume = 1.0f;
-        string volHeader = context.Request.Headers["X-Volume"];
-        if (!string.IsNullOrEmpty(volHeader) && float.TryParse(volHeader, out float vol)) {
-            volume = Mathf.Clamp(vol, 0f, 2f);
-        }
-
-        bool? spatialOverride = null;
-        string spatialHeader = context.Request.Headers["X-Spatial"];
-        if (!string.IsNullOrEmpty(spatialHeader)) {
-            spatialOverride = spatialHeader.ToLower() == "y" || spatialHeader.ToLower() == "yes";
-        }
-
-        byte[] data;
-        using (var ms = new MemoryStream()) {
-            context.Request.InputStream.CopyTo(ms);
-            data = ms.ToArray();
-        }
-
-        EnqueueWave(data, context, audioId, volume, spatialOverride);
-    }
-
-    private void EnqueueWave(byte[] data, HttpListenerContext context, string audioId, float headerVolume, bool? spatialOverride) {
-        var config = ServerConfig.Instance;
-        string mode = config?.wavePlaybackConcurrency ?? "interrupt";
-        if (lastConcurrency != mode) {
-            if (lastConcurrency == "queue" && mode != "queue") waveQueue.Clear();
-            lastConcurrency = mode;
-        }
-
-        var item = new WaveItem{ data = data, context = context, id = audioId, volume = headerVolume, spatial = spatialOverride };
-
-        if (mode == "queue") {
-            if (audioSource != null && audioSource.isPlaying) {
-                waveQueue.Enqueue(item);
-                SendWaveJsonResponse(context, 200, "queued", audioId);
-                return;
-            }
-            PlayWave(item);
-            return;
-        }
-        if (mode == "reject" && audioSource != null && audioSource.isPlaying) {
-            SendWaveJsonResponse(context, 409, "busy");
-            return;
-        }
-        PlayWave(item);
-    }
-
-    private void PlayWave(WaveItem item) {
-        var data = item.data;
-        var context = item.context;
-        string audioId = item.id;
-        float headerVolume = item.volume;
-        bool? spatialOverride = item.spatial;
-        
-        if (audioSource == null) {
-            var go = new GameObject("WavePlaybackSource");
-            audioSource = go.AddComponent<AudioSource>();
-        }
-        if (lipSync == null) lipSync = GameObject.FindObjectOfType<AudioLipSync>();
-        if (lipSyncFft == null) lipSyncFft = GameObject.FindObjectOfType<LipSyncFFTProcessor>();
-        if (lipSyncFft != null) lipSyncFft.targetAudioSource = audioSource;
-        
+    /// <summary>
+    /// Python参考サーバーを基にしたシンプルなWAVE再生処理
+    /// </summary>
+    private void HandleWavePlayback(HttpListenerContext context) {
         try {
-            if (!TryParseWav(data, out float[] samples, out int sampleRate)) {
-                SendWaveJsonResponse(context, 422, "invalid_wav");
+            // POSTメソッドのみ受け付け
+            if (context.Request.HttpMethod != "POST") {
+                SendJsonResponse(context, 405, "Method Not Allowed - POST required");
                 return;
             }
-            var clip = AudioClip.Create("wave", samples.Length, 1, sampleRate, false);
+
+            // Content-Lengthチェック
+            long contentLength = context.Request.ContentLength64;
+            if (contentLength <= 0) {
+                SendJsonResponse(context, 400, "No audio data received");
+                return;
+            }
+
+            if (contentLength > 5_000_000) { // 5MB制限
+                SendJsonResponse(context, 413, "Payload too large (max 5MB)");
+                return;
+            }
+
+            // WAVEデータを読み込み
+            byte[] audioData = new byte[contentLength];
+            int bytesRead = 0;
+            int totalBytesRead = 0;
+
+            while (totalBytesRead < contentLength) {
+                bytesRead = context.Request.InputStream.Read(audioData, totalBytesRead, (int)(contentLength - totalBytesRead));
+                if (bytesRead == 0) break;
+                totalBytesRead += bytesRead;
+            }
+
+            if (totalBytesRead > 0) {
+                // 音声IDを生成（Python版に合わせる）
+                string audioId = context.Request.Headers["x-audio-id"] ?? $"id{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                
+                // WAVEデータをキューに追加して再生
+                bool success = QueueWaveForPlayback(audioData, audioId);
+                
+                if (success) {
+                    var response = new {
+                        status = "queued",
+                        id = audioId,
+                        bytes_received = totalBytesRead
+                    };
+                    SendJsonResponse(context, 200, JsonUtility.ToJson(response));
+                } else {
+                    SendJsonResponse(context, 500, "Failed to queue audio for playback");
+                }
+            } else {
+                SendJsonResponse(context, 400, "No audio data received");
+            }
+        }
+        catch (Exception ex) {
+            Debug.LogError($"[HandleWavePlayback] Error: {ex.Message}");
+            SendJsonResponse(context, 500, $"Wave playback error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// WAVEデータをキューに追加して再生開始（3つの再生方式対応）
+    /// </summary>
+    private bool QueueWaveForPlayback(byte[] waveData, string audioId) {
+        try {
+            Debug.Log($"[WavePlayback] Mode: {currentPlaybackMode}, Audio ID: {audioId}, Playing: {isCurrentlyPlaying}");
+
+            switch (currentPlaybackMode) {
+                case "queue":
+                    // キュー方式：順次再生
+                    audioQueue.Enqueue(new WaveAudioData(audioId, waveData));
+                    Debug.Log($"[WavePlayback] Queued audio: {audioId}, Queue size: {audioQueue.Count}");
+                    
+                    if (!isCurrentlyPlaying) {
+                        ProcessNextInQueue();
+                    }
+                    return true;
+
+                case "reject":
+                    // 再生中は拒否
+                    if (isCurrentlyPlaying) {
+                        Debug.Log($"[WavePlayback] Rejected: {audioId} (already playing: {currentAudioId})");
+                        return false;
+                    }
+                    return PlayWaveDataDirectly(waveData, audioId);
+
+                case "immediate":
+                default:
+                    // 即時再生：再生を中断して新しいものを再生
+                    if (isCurrentlyPlaying) {
+                        StopAllCurrentAudio();
+                    }
+                    return PlayWaveDataDirectly(waveData, audioId);
+            }
+        }
+        catch (Exception ex) {
+            Debug.LogError($"[QueueWaveForPlayback] Error: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// キューの次の音声を処理
+    /// </summary>
+    private void ProcessNextInQueue() {
+        if (audioQueue.Count == 0 || isCurrentlyPlaying) return;
+
+        var nextAudio = audioQueue.Dequeue();
+        Debug.Log($"[WavePlayback] Processing queue: {nextAudio.audioId}");
+        PlayWaveDataDirectly(nextAudio.waveData, nextAudio.audioId);
+    }
+
+    /// <summary>
+    /// フォールバック用の直接再生処理
+    /// </summary>
+    private bool PlayWaveDataDirectly(byte[] waveData, string audioId = null) {
+        try {
+            // WAVヘッダーを解析
+            if (!ParseWavHeader(waveData, out int sampleRate, out int channels, out int bitsPerSample, out int dataOffset)) {
+                Debug.LogWarning("[PlayWaveDataDirectly] Invalid WAV header");
+                return false;
+            }
+
+            Debug.Log($"[PlayWaveDataDirectly] WAV Format - SampleRate: {sampleRate}, Channels: {channels}, BitsPerSample: {bitsPerSample}");
+
+            // 音声データ部分を取得
+            byte[] audioSamples = new byte[waveData.Length - dataOffset];
+            System.Array.Copy(waveData, dataOffset, audioSamples, 0, audioSamples.Length);
+
+            // PCMをfloatに変換
+            float[] samples = ConvertPCMToFloat(audioSamples, bitsPerSample, channels);
+            if (samples == null || samples.Length == 0) {
+                Debug.LogWarning("[PlayWaveDataDirectly] Failed to convert PCM data");
+                return false;
+            }
+
+            // immediateモード以外では既存の音声を停止
+            if (currentPlaybackMode == "immediate") {
+                StopAllCurrentAudio();
+            }
+
+            // Unity AudioClipを作成
+            AudioClip clip = AudioClip.Create($"WaveAudio_{System.DateTime.Now.Ticks}", 
+                samples.Length / channels, channels, sampleRate, false);
             clip.SetData(samples, 0);
-            var config = ServerConfig.Instance;
-            bool spatial = spatialOverride ?? (config?.waveSpatializationEnabled ?? true);
-            audioSource.spatialBlend = spatial ? 1f : 0f;
-            float baseVol = config?.wavePlaybackVolume ?? 1.0f;
-            string prevId = null;
-            if (audioSource.isPlaying) {
-                prevId = currentAudioId;
-                audioSource.Stop();
-                if (playbackRoutine != null) StopCoroutine(playbackRoutine);
-                lipSync?.FeedWaveRms(0f);
-                lipSyncFft?.ResetMouth();
-                Telemetry.LogEvent("wave_interrupt", new System.Collections.Generic.Dictionary<string, object>{{"old_id", prevId},{"new_id", audioId}});
+
+            // 再生状態を設定
+            isCurrentlyPlaying = true;
+            currentAudioId = audioId ?? $"unknown_{System.DateTime.Now.Ticks}";
+
+            // AudioChannelManagerで再生（なければ作成）
+            var audioManager = EnsureAudioChannelManager();
+            if (audioManager != null) {
+                // AudioLipSyncをWavePlaybackモードに設定
+                SetupWavePlaybackLipSync();
+                
+                // AudioSourceLipSyncCaptureをmasterAudioSourceにアタッチ
+                AttachLipSyncCaptureToAudioSource(audioManager.GetMasterAudioSource());
+                
+                audioManager.PlayAudioClip(clip, 1f, false);
+                Debug.Log($"[PlayWaveDataDirectly] Playing audio clip with LipSync: {samples.Length / channels} samples, {clip.length:F2}s");
+                
+                // 再生完了後のコールバックを設定
+                StartCoroutine(MonitorPlaybackEnd(clip.length));
+                return true;
+            } else {
+                // 最後の手段：単純なAudioSourceで再生
+                return PlayWithSimpleAudioSource(clip);
             }
-            audioSource.volume = baseVol * headerVolume;
-            audioSource.clip = clip;
-            audioSource.Play();
-            currentAudioId = audioId;
-            playStartTime = Time.time;
-            playbackRoutine = StartCoroutine(PlaybackCoroutine(samples, sampleRate, audioId));
-            Telemetry.LogEvent("wave_start", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"bytes", data.Length},{"ip", context.Request.RemoteEndPoint.Address.ToString()}});
-            if (prevId != null)
-                SendWaveJsonResponse(context, 200, "interrupted", audioId, prevId);
-            else
-                SendWaveJsonResponse(context, 200, "ok", audioId);
-        } catch (Exception e) {
-            Debug.LogError($"[Wave] playback error: {e.Message}");
-            SendWaveJsonResponse(context, 500, "internal_error");
+        }
+        catch (Exception ex) {
+            Debug.LogError($"[PlayWaveDataDirectly] Error: {ex.Message}");
+            isCurrentlyPlaying = false;
+            currentAudioId = "";
+            return false;
         }
     }
 
-    private IEnumerator PlaybackCoroutine(float[] samples, int sampleRate, string audioId) {
-        int step = Mathf.Max(1, sampleRate / 100); // 10ms
-        var config = ServerConfig.Instance;
-        float offset = (config?.lipSyncOffsetMs ?? 0) / 1000f;
-        float nextTime = Time.time + offset;
-        for (int i = 0; i < samples.Length; i += step) {
-            float sum = 0f;
-            int count = 0;
-            for (int j = 0; j < step && i + j < samples.Length; j++) { sum += samples[i + j] * samples[i + j]; count++; }
-            float rms = Mathf.Sqrt(sum / count);
-            lipSync?.FeedWaveRms(rms);
-            float delay = nextTime - Time.time;
-            if (delay > 0f) yield return new WaitForSeconds(delay); else yield return null;
-            nextTime += 0.01f;
-        }
-        lipSync?.FeedWaveRms(0f);
-        var expr = VRMLoader.Instance?.VrmInstance?.Runtime?.Expression;
-        if (expr != null) expr.SetWeight(ExpressionKey.Aa, 0f);
-        Telemetry.LogEvent("wave_complete", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"duration_ms", (int)((Time.time - playStartTime)*1000)}});
-        currentAudioId = null;
-        playbackRoutine = null;
-        if ((config?.wavePlaybackConcurrency ?? "interrupt") == "queue" && waveQueue.Count > 0) {
-            var nextItem = waveQueue.Dequeue();
-            PlayWave(nextItem);
-        }
-    }
-
-    private bool TryParseWav(byte[] bytes, out float[] samples, out int sampleRate) {
-        samples = null;
-        sampleRate = 48000;
-        if (bytes.Length < 44) return false;
-        using (var ms = new MemoryStream(bytes)) using (var br = new BinaryReader(ms)) {
-            string riff = new string(br.ReadChars(4));
-            if (riff != "RIFF") return false;
-            br.ReadInt32();
-            string wave = new string(br.ReadChars(4));
-            if (wave != "WAVE") return false;
-            string fmt = new string(br.ReadChars(4));
-            if (fmt != "fmt ") return false;
-            int fmtSize = br.ReadInt32();
-            ushort audioFormat = br.ReadUInt16();
-            ushort channels = br.ReadUInt16();
-            sampleRate = br.ReadInt32();
-            br.ReadInt32(); // byte rate
-            br.ReadUInt16(); // block align
-            ushort bitsPerSample = br.ReadUInt16();
-            ms.Position += fmtSize - 16;
-            string dataId = new string(br.ReadChars(4));
-            while (dataId != "data") {
-                int skip = br.ReadInt32();
-                ms.Position += skip;
-                if (ms.Position + 4 > ms.Length) return false;
-                dataId = new string(br.ReadChars(4));
-            }
-            int dataSize = br.ReadInt32();
-            if (audioFormat != 1 || bitsPerSample != 16 || channels != 1) return false;
-            short[] pcm = new short[dataSize / 2];
-            for (int i = 0; i < pcm.Length; i++) pcm[i] = br.ReadInt16();
-            samples = new float[pcm.Length];
-            for (int i = 0; i < pcm.Length; i++) samples[i] = pcm[i] / 32768f;
-        }
-        return true;
-    }
-
-    private void SendWaveJsonResponse(HttpListenerContext ctx, int status, string msg, string id = null, string prevId = null) {
-        string body;
-        if (prevId != null)
-            body = $"{{\"status\":\"{msg}\",\"prev_id\":\"{prevId}\",\"id\":\"{id}\"}}";
-        else if (id != null)
-            body = $"{{\"status\":\"{msg}\",\"id\":\"{id}\"}}";
-        else
-            body = $"{{\"status\":\"{msg}\"}}";
-        var buf = System.Text.Encoding.UTF8.GetBytes(body);
-        ctx.Response.StatusCode = status;
-        ctx.Response.ContentType = "application/json";
-        ctx.Response.ContentLength64 = buf.Length;
+    /// <summary>
+    /// AudioLipSyncをWavePlaybackモードに設定
+    /// </summary>
+    private void SetupWavePlaybackLipSync() {
         try {
-            using (var s = ctx.Response.OutputStream) {
-                s.Write(buf, 0, buf.Length);
+            var audioLipSync = FindAnyObjectByType<AudioLipSync>();
+            if (audioLipSync != null) {
+                // WavePlaybackチャンネル（ID=2）でLipSyncを開始
+                audioLipSync.StartLipSync(2); // WAVEPLAYBACK_CHANNEL_ID = 2
+                Debug.Log("[WavePlayback] AudioLipSync set to WavePlayback mode");
+            } else {
+                Debug.LogWarning("[WavePlayback] AudioLipSync component not found");
             }
-        } catch (Exception ex) {
-            Debug.LogWarning($"⚠️ SendWaveJsonResponse transport failure: {ex.Message}");
+        }
+        catch (Exception ex) {
+            Debug.LogWarning($"[SetupWavePlaybackLipSync] Error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// AudioSourceにAudioSourceLipSyncCaptureコンポーネントをアタッチ
+    /// </summary>
+    private void AttachLipSyncCaptureToAudioSource(AudioSource audioSource) {
+        try {
+            if (audioSource == null) {
+                Debug.LogWarning("[AttachLipSyncCaptureToAudioSource] AudioSource is null");
+                return;
+            }
+
+            // リフレクションでAudioSourceLipSyncCaptureタイプを取得
+            var captureType = System.Type.GetType("AudioSourceLipSyncCapture");
+            if (captureType == null) {
+                Debug.LogWarning("[AttachLipSyncCaptureToAudioSource] AudioSourceLipSyncCapture type not found");
+                return;
+            }
+
+            // 既存のAudioSourceLipSyncCaptureがあれば削除
+            var existingCapture = audioSource.GetComponent(captureType);
+            if (existingCapture != null) {
+                Destroy(existingCapture);
+            }
+
+            // 新しいAudioSourceLipSyncCaptureを追加
+            var lipSyncCapture = audioSource.gameObject.AddComponent(captureType);
+            if (lipSyncCapture != null) {
+                Debug.Log("[WavePlayback] AudioSourceLipSyncCapture attached to AudioSource");
+            }
+        }
+        catch (Exception ex) {
+            Debug.LogWarning($"[AttachLipSyncCaptureToAudioSource] Error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// LipSync解析を開始
+    /// </summary>
+    private void StartLipSyncAnalysis(AudioChannelManager audioManager) {
+        try {
+            // FFTAnalysisChannelを確実に取得
+            var fftChannel = EnsureFFTAnalysisChannel();
+            if (fftChannel != null) {
+                Debug.Log("[WavePlayback] LipSync analysis started with FFTAnalysisChannel");
+            } else {
+                Debug.LogWarning("[WavePlayback] FFTAnalysisChannel not available for LipSync");
+            }
+        }
+        catch (Exception ex) {
+            Debug.LogWarning($"[StartLipSyncAnalysis] Error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// FFTAnalysisChannelが確実に存在することを保証
+    /// </summary>
+    private FFTAnalysisChannel EnsureFFTAnalysisChannel() {
+        var fftChannel = FFTAnalysisChannel.Instance;
+        if (fftChannel == null) {
+            Debug.Log("[AnimationServer] FFTAnalysisChannel not found, creating new instance...");
+            GameObject fftChannelGO = new GameObject("FFTAnalysisChannel");
+            fftChannel = fftChannelGO.AddComponent<FFTAnalysisChannel>();
+        }
+        return fftChannel;
+    }
+
+    /// <summary>
+    /// 再生完了を監視
+    /// </summary>
+    private IEnumerator MonitorPlaybackEnd(float duration) {
+        yield return new WaitForSeconds(duration + 0.1f);
+        
+        // 再生状態をリセット
+        isCurrentlyPlaying = false;
+        var finishedAudioId = currentAudioId;
+        currentAudioId = "";
+        
+        Debug.Log($"[WavePlayback] Playback finished: {finishedAudioId}");
+        
+        // キューモードの場合、次の音声を再生
+        if (currentPlaybackMode == "queue" && audioQueue.Count > 0) {
+            ProcessNextInQueue();
+        }
+    }
+
+    /// <summary>
+    /// WAVヘッダーを解析してフォーマット情報を取得
+    /// </summary>
+    private bool ParseWavHeader(byte[] wavData, out int sampleRate, out int channels, out int bitsPerSample, out int dataOffset) {
+        sampleRate = 44100;
+        channels = 1;
+        bitsPerSample = 16;
+        dataOffset = 44;
+
+        if (wavData.Length < 44) return false;
+
+        try {
+            // "RIFF"チェック
+            if (System.Text.Encoding.ASCII.GetString(wavData, 0, 4) != "RIFF") return false;
+            
+            // "WAVE"チェック
+            if (System.Text.Encoding.ASCII.GetString(wavData, 8, 4) != "WAVE") return false;
+
+            // "fmt "チャンクを探す
+            int fmtOffset = 12;
+            while (fmtOffset < wavData.Length - 4) {
+                string chunkId = System.Text.Encoding.ASCII.GetString(wavData, fmtOffset, 4);
+                int chunkSize = System.BitConverter.ToInt32(wavData, fmtOffset + 4);
+
+                if (chunkId == "fmt ") {
+                    // フォーマット情報を読み取り
+                    channels = System.BitConverter.ToInt16(wavData, fmtOffset + 10);
+                    sampleRate = System.BitConverter.ToInt32(wavData, fmtOffset + 12);
+                    bitsPerSample = System.BitConverter.ToInt16(wavData, fmtOffset + 22);
+                    break;
+                }
+                fmtOffset += 8 + chunkSize;
+            }
+
+            // "data"チャンクを探す
+            int dataChunkOffset = 12;
+            while (dataChunkOffset < wavData.Length - 4) {
+                string chunkId = System.Text.Encoding.ASCII.GetString(wavData, dataChunkOffset, 4);
+                int chunkSize = System.BitConverter.ToInt32(wavData, dataChunkOffset + 4);
+
+                if (chunkId == "data") {
+                    dataOffset = dataChunkOffset + 8;
+                    return true;
+                }
+                dataChunkOffset += 8 + chunkSize;
+            }
+
+            return false;
+        }
+        catch {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// PCMデータをfloat配列に変換
+    /// </summary>
+    private float[] ConvertPCMToFloat(byte[] pcmData, int bitsPerSample, int channels) {
+        switch (bitsPerSample) {
+            case 16:
+                float[] samples16 = new float[pcmData.Length / 2];
+                for (int i = 0; i < samples16.Length; i++) {
+                    short sample = System.BitConverter.ToInt16(pcmData, i * 2);
+                    samples16[i] = sample / 32768f;
+                }
+                return samples16;
+
+            case 8:
+                float[] samples8 = new float[pcmData.Length];
+                for (int i = 0; i < samples8.Length; i++) {
+                    samples8[i] = (pcmData[i] - 128) / 128f;
+                }
+                return samples8;
+
+            case 24:
+                float[] samples24 = new float[pcmData.Length / 3];
+                for (int i = 0; i < samples24.Length; i++) {
+                    int sample = (pcmData[i * 3] << 8) | (pcmData[i * 3 + 1] << 16) | (pcmData[i * 3 + 2] << 24);
+                    samples24[i] = sample / 2147483648f;
+                }
+                return samples24;
+
+            case 32:
+                float[] samples32 = new float[pcmData.Length / 4];
+                for (int i = 0; i < samples32.Length; i++) {
+                    samples32[i] = System.BitConverter.ToSingle(pcmData, i * 4);
+                }
+                return samples32;
+
+            default:
+                Debug.LogWarning($"[ConvertPCMToFloat] Unsupported bit depth: {bitsPerSample}");
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// 既存の音声を停止（重複再生防止）
+    /// </summary>
+    private void StopAllCurrentAudio() {
+        try {
+            var audioManager = AudioChannelManager.Instance;
+            if (audioManager != null) {
+                audioManager.StopAllChannels();
+            }
+
+            // 単純なAudioSourceも停止
+            var simpleAudioSources = FindObjectsOfType<AudioSource>();
+            foreach (var source in simpleAudioSources) {
+                if (source.gameObject.name.StartsWith("SimpleAudioSource")) {
+                    source.Stop();
+                    Destroy(source.gameObject);
+                }
+            }
+        }
+        catch (Exception ex) {
+            Debug.LogWarning($"[StopAllCurrentAudio] Error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// AudioChannelManagerが確実に存在することを保証
+    /// </summary>
+    private AudioChannelManager EnsureAudioChannelManager() {
+        var audioManager = AudioChannelManager.Instance;
+        if (audioManager == null) {
+            Debug.Log("[AnimationServer] AudioChannelManager not found, creating new instance...");
+            GameObject audioManagerGO = new GameObject("AudioChannelManager");
+            audioManager = audioManagerGO.AddComponent<AudioChannelManager>();
+        }
+        return audioManager;
+    }
+
+    /// <summary>
+    /// 単純なAudioSourceでの再生（最後の手段）
+    /// </summary>
+    private bool PlayWithSimpleAudioSource(AudioClip clip) {
+        try {
+            GameObject audioGO = new GameObject("SimpleAudioSource");
+            AudioSource audioSource = audioGO.AddComponent<AudioSource>();
+            audioSource.clip = clip;
+            audioSource.volume = 1f;
+            audioSource.Play();
+            
+            // 再生終了後にGameObjectを削除
+            StartCoroutine(DestroyAfterPlay(audioGO, clip.length));
+            
+            Debug.Log($"[PlayWithSimpleAudioSource] Playing with simple AudioSource: {clip.length}s");
+            return true;
+        }
+        catch (Exception ex) {
+            Debug.LogError($"[PlayWithSimpleAudioSource] Error: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 再生終了後にGameObjectを削除
+    /// </summary>
+    private IEnumerator DestroyAfterPlay(GameObject audioGO, float duration) {
+        yield return new WaitForSeconds(duration + 1f);
+        if (audioGO != null) {
+            Destroy(audioGO);
         }
     }
 

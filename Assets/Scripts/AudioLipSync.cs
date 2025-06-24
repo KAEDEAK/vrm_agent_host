@@ -11,10 +11,10 @@ using System;
 using System.Collections.Generic;
 
 public class AudioLipSync : MonoBehaviour {
-    private const int WAVE_CHANNEL_ID = 0;
-    private const int EXTERNAL_CHANNEL_ID = 1; // WASAPI
-    private const int MICROPHONE_CHANNEL_ID = 2;
-    private enum LipSyncSource { None, WavePlayback, External, Microphone }
+    private const int MICROPHONE_CHANNEL_ID = 1;
+    private const int WAVEPLAYBACK_CHANNEL_ID = 2;
+    private const int WASAPI_CHANNEL_ID = 3;
+    private enum LipSyncSource { None, Microphone, WavePlayback, WASAPI }
     private LipSyncSource currentSource = LipSyncSource.None;
 
     // LipSync Blend Mode System
@@ -55,7 +55,6 @@ public class AudioLipSync : MonoBehaviour {
     private WasapiLoopbackCapture wasapiCapture;
     private float wasapiVolume = 0f;
     private object wasapiLock = new object();
-    private float waveRms = 0f;
 
     private const int sampleWindow = 128;
     private float[] samples = new float[sampleWindow];
@@ -65,9 +64,13 @@ public class AudioLipSync : MonoBehaviour {
 
     private float scaleMultiplier = 3.0f;
 
+    // 同期調整用パラメータ
+    private float lipSyncOffsetMs = 0f;        // LipSync遅延補正（ミリ秒）
+    private float lipSyncPredict = 0f;         // 予測補正（ミリ秒）
+    private bool enableSyncOptimization = true; // 同期最適化の有効/無効
+
     private VRMLoader vrmLoader;
     private Vrm10RuntimeExpression expression;
-    public bool IsInitialized { get { return expression != null; } }
     private FftProvider fftProvider;
     private float[] fftMagnitudes;
     private const FftSize fftSize = FftSize.Fft1024;
@@ -172,6 +175,14 @@ public class AudioLipSync : MonoBehaviour {
                 Debug.LogWarning($"⚠️ {entry.key} の設定が無効だったので、デフォルト値を使うよ～！");
             }
         }
+
+        // 同期調整設定を読み込み
+        var lipSyncConfig = ServerConfig.Instance.lipSync;
+        lipSyncOffsetMs = lipSyncConfig.syncOffsetMs;
+        lipSyncPredict = lipSyncConfig.syncPredictMs;
+        enableSyncOptimization = lipSyncConfig.enableSyncOptimization;
+        
+        Debug.Log($"[LipSync] 同期設定を読み込み: オフセット={lipSyncOffsetMs}ms, 予測={lipSyncPredict}ms, 最適化={enableSyncOptimization}");
     }
 
     private void OnDestroy() {
@@ -184,6 +195,10 @@ public class AudioLipSync : MonoBehaviour {
 
     private void OnModelLoaded(GameObject vrmModel) {
         expression = vrmLoader.VrmInstance.Runtime.Expression;
+    }
+
+    private bool IsVRMLoaded() {
+        return vrmLoader != null && vrmLoader.VrmInstance != null && vrmLoader.VrmInstance.Runtime?.Expression != null;
     }
     private void Update() {
         if (!isLipSyncActive || fftProvider == null)
@@ -254,38 +269,11 @@ public class AudioLipSync : MonoBehaviour {
     private void ApplyPhoneme(Dictionary<string, float> phonemeRatios) {
         if (expression == null) return;
 
-        float rms = 0f;
-        if (currentSource == LipSyncSource.WavePlayback) rms = waveRms;
-        else if (currentSource == LipSyncSource.External) rms = wasapiVolume;
-        else if (currentSource == LipSyncSource.Microphone) rms = GetMicrophoneVolume();
+        float rms = (currentSource == LipSyncSource.WASAPI) ? wasapiVolume : GetMicrophoneVolume();
         float scaled = Mathf.Clamp01(rms * scaleMultiplier);
 
-        // AUTO モードの処理
-        if (currentBlendMode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) {
-            HandleAutoMode();
-        }
-
-        // 現在のブレンドモードに応じて処理を分岐
-        LipSyncBlendMode activeMode = (currentBlendMode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) ? currentAutoMode : currentBlendMode;
-
-        switch (activeMode) {
-            case LipSyncBlendMode.LIPSYNC_MODE_BLEND_EXPR:
-                Debug.Log("!! LIPSYNC_MODE_BLEND_EXPR");
-                ApplyBlendExprMode(phonemeRatios, scaled);
-                break;
-            case LipSyncBlendMode.LIPSYNC_MODE_RESET_EXPR:
-                Debug.Log("!! LIPSYNC_MODE_RESET_EXPR");
-                ApplyResetExprMode(phonemeRatios, scaled);
-                break;
-            case LipSyncBlendMode.LIPSYNC_MODE_NONE:
-                Debug.Log("!! LIPSYNC_MODE_NONE");
-                ApplyNoneMode(phonemeRatios, scaled);
-                break;
-            case LipSyncBlendMode.LIPSYNC_MODE_FULL:
-                Debug.Log("!! LIPSYNC_MODE_FULL");
-                ApplyFullMode(phonemeRatios, scaled);
-                break;
-        }
+        // 同期調整機能を使用
+        ApplyPhonemeWithSync(phonemeRatios, scaled);
     }
 
     // BLEND_EXPR モード: 現在の実装（表情との加算）
@@ -424,6 +412,7 @@ public class AudioLipSync : MonoBehaviour {
     // アクティブな感情表情があるかチェック
     private bool HasActiveEmotionExpression() {
         if (expression == null) return false;
+        
         foreach (var key in emotionExpressionKeys) {
             if (expression.GetWeight(key) > 0.01f) {
                 return true;
@@ -505,10 +494,19 @@ public class AudioLipSync : MonoBehaviour {
         }
     }
 
-    private void StartLipSyncWave() {
-        isLipSyncActive = true;
-        currentSource = LipSyncSource.WavePlayback;
-        Debug.Log("Wave playback lip sync started.");
+    private void StartLipSyncWavePlayback() {
+        try {
+            // WavePlayback用のFFTプロバイダーを初期化
+            fftProvider = new FftProvider(1, fftSize);
+            fftMagnitudes = new float[(int)fftSize];
+            
+            isLipSyncActive = true;
+            currentSource = LipSyncSource.WavePlayback;
+            Debug.Log("[LipSync] Wave Playback チャンネルを開始しました");
+        }
+        catch (Exception ex) {
+            Debug.LogError($"[LipSync] Wave Playback チャンネルの開始に失敗: {ex.Message}");
+        }
     }
 
     private void StartLipSyncWASAPI() {
@@ -522,7 +520,7 @@ public class AudioLipSync : MonoBehaviour {
             wasapiCapture.DataAvailable += WasapiCapture_DataAvailable;
             wasapiCapture.Start();
             isLipSyncActive = true;
-            currentSource = LipSyncSource.External;
+            currentSource = LipSyncSource.WASAPI;
             Debug.Log(i18nMsg.AUDIOSYNC_WASAPI_STARTED);
         }
         catch (Exception ex) {
@@ -550,10 +548,6 @@ public class AudioLipSync : MonoBehaviour {
         }
     }
 
-    public void FeedWaveRms(float rms) {
-        waveRms = rms;
-    }
-
     public void StartLipSync(int channel, float scale) {
         scaleMultiplier = scale;
         StartLipSync(channel);
@@ -565,21 +559,21 @@ public class AudioLipSync : MonoBehaviour {
             StopLipSync();
         }
 
-        if (vrmLoader?.VrmInstance?.Runtime?.Expression == null) {
+        if (!IsVRMLoaded()) {
             Debug.LogError("❌ VRM がロードされていないか、Expression システムが無効のため、リップシンクを開始できません！");
             return;
         }
 
         expression = vrmLoader.VrmInstance.Runtime.Expression;
 
-        if (channel == WAVE_CHANNEL_ID) {
-            StartLipSyncWave();
-        }
-        else if (channel == EXTERNAL_CHANNEL_ID) {
-            StartLipSyncWASAPI();
-        }
-        else if (channel == MICROPHONE_CHANNEL_ID) {
+        if (channel == MICROPHONE_CHANNEL_ID) {
             StartLipSyncMic();
+        }
+        else if (channel == WAVEPLAYBACK_CHANNEL_ID) {
+            StartLipSyncWavePlayback();
+        }
+        else if (channel == WASAPI_CHANNEL_ID) {
+            StartLipSyncWASAPI();
         }
         else {
             Debug.LogError(string.Format(i18nMsg.AUDIOSYNC_INVALID_CHANNEL, channel));
@@ -592,13 +586,14 @@ public class AudioLipSync : MonoBehaviour {
         if (currentSource == LipSyncSource.Microphone) {
             Microphone.End(microphoneDevice);
         }
-        else if (currentSource == LipSyncSource.External) {
+        else if (currentSource == LipSyncSource.WavePlayback) {
+            // WavePlayback用のクリーンアップ（必要に応じて）
+            Debug.Log("[LipSync] Wave Playback チャンネルを停止しました");
+        }
+        else if (currentSource == LipSyncSource.WASAPI) {
             wasapiCapture?.Stop();
             wasapiCapture?.Dispose();
             wasapiCapture = null;
-        }
-        else if (currentSource == LipSyncSource.WavePlayback) {
-            waveRms = 0f;
         }
 
         isLipSyncActive = false;
@@ -660,9 +655,107 @@ public class AudioLipSync : MonoBehaviour {
         Debug.Log("[LipSync] 表情を手動でリセットしました");
     }
 
+    // 同期調整機能
+    public void SetLipSyncOffset(float offsetMs) {
+        lipSyncOffsetMs = offsetMs;
+        Debug.Log($"[LipSync] 同期オフセットを設定: {offsetMs}ms");
+    }
+
+    public float GetLipSyncOffset() {
+        return lipSyncOffsetMs;
+    }
+
+    public void SetLipSyncPredict(float predictMs) {
+        lipSyncPredict = predictMs;
+        Debug.Log($"[LipSync] 予測補正を設定: {predictMs}ms");
+    }
+
+    public float GetLipSyncPredict() {
+        return lipSyncPredict;
+    }
+
+    public void SetSyncOptimization(bool enabled) {
+        enableSyncOptimization = enabled;
+        Debug.Log($"[LipSync] 同期最適化: {(enabled ? "有効" : "無効")}");
+    }
+
+    public bool GetSyncOptimization() {
+        return enableSyncOptimization;
+    }
+
+    // 同期調整を適用したタイミングでフォニーム適用
+    private void ApplyPhonemeWithSync(Dictionary<string, float> phonemeRatios, float scaled) {
+        if (!enableSyncOptimization) {
+            // 最適化無効の場合は従来通り
+            ApplyPhonemeInternal(phonemeRatios, scaled);
+            return;
+        }
+
+        // 同期調整を適用
+        float totalOffsetMs = lipSyncOffsetMs + lipSyncPredict;
+        
+        if (Mathf.Abs(totalOffsetMs) < 1f) {
+            // オフセットが小さい場合は直接適用
+            ApplyPhonemeInternal(phonemeRatios, scaled);
+        } else if (totalOffsetMs > 0) {
+            // 遅延補正: 指定時間後に適用
+            StartCoroutine(DelayedPhonemeApplication(phonemeRatios, scaled, totalOffsetMs / 1000f));
+        } else {
+            // 予測補正: 現在のフレームで早めに適用（簡易実装）
+            ApplyPhonemeInternal(phonemeRatios, scaled);
+        }
+    }
+
+    private IEnumerator DelayedPhonemeApplication(Dictionary<string, float> phonemeRatios, float scaled, float delaySeconds) {
+        yield return new WaitForSeconds(delaySeconds);
+        ApplyPhonemeInternal(phonemeRatios, scaled);
+    }
+
+    private void ApplyPhonemeInternal(Dictionary<string, float> phonemeRatios, float scaled) {
+        if (expression == null) return;
+
+        // AUTO モードの処理
+        if (currentBlendMode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) {
+            HandleAutoMode();
+        }
+
+        // 現在のブレンドモードに応じて処理を分岐
+        LipSyncBlendMode activeMode = (currentBlendMode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) ? currentAutoMode : currentBlendMode;
+
+        switch (activeMode) {
+            case LipSyncBlendMode.LIPSYNC_MODE_BLEND_EXPR:
+                ApplyBlendExprMode(phonemeRatios, scaled);
+                break;
+            case LipSyncBlendMode.LIPSYNC_MODE_RESET_EXPR:
+                ApplyResetExprMode(phonemeRatios, scaled);
+                break;
+            case LipSyncBlendMode.LIPSYNC_MODE_NONE:
+                ApplyNoneMode(phonemeRatios, scaled);
+                break;
+            case LipSyncBlendMode.LIPSYNC_MODE_FULL:
+                ApplyFullMode(phonemeRatios, scaled);
+                break;
+        }
+    }
+
+    // WavePlayback用のサンプルデータ受信メソッド
+    public void FeedWaveSample(float sample) {
+        if (currentSource == LipSyncSource.WavePlayback && fftProvider != null) {
+            fftProvider.Add(sample, 0);
+        }
+    }
+
+    // WavePlayback用のRMS値受信メソッド
+    public void FeedWaveRms(float rms) {
+        if (currentSource == LipSyncSource.WavePlayback) {
+            lock (wasapiLock) {
+                wasapiVolume = rms;
+            }
+        }
+    }
+
     public string GetLipSyncStatusJson() {
         AudioStatusInfo status = new AudioStatusInfo {
-            isInitialized = IsInitialized,
             currentSource = currentSource.ToString(),
             currentBlendMode = currentBlendMode.ToString(),
             currentAutoMode = (currentBlendMode == LipSyncBlendMode.LIPSYNC_MODE_AUTO) ? currentAutoMode.ToString() : null,
@@ -671,9 +764,9 @@ public class AudioLipSync : MonoBehaviour {
             lipSyncInputDuration = lipSyncInputDuration,
             availableChannels = new List<AudioChannelInfo>()
             {
-                new AudioChannelInfo() { id = WAVE_CHANNEL_ID, name = "WavePlayback" },
-                new AudioChannelInfo() { id = EXTERNAL_CHANNEL_ID, name = "ExternalAudio" },
-                new AudioChannelInfo() { id = MICROPHONE_CHANNEL_ID, name = "Microphone" }
+                new AudioChannelInfo() { id = MICROPHONE_CHANNEL_ID, name = "Microphone" },
+                new AudioChannelInfo() { id = WAVEPLAYBACK_CHANNEL_ID, name = "Wave Playback" },
+                new AudioChannelInfo() { id = WASAPI_CHANNEL_ID, name = "System Audio (WASAPI)" }
             }
         };
         return JsonUtility.ToJson(status);
@@ -681,7 +774,6 @@ public class AudioLipSync : MonoBehaviour {
 
     [Serializable]
     public class AudioStatusInfo {
-        public bool isInitialized;
         public string currentSource;
         public string currentBlendMode;
         public string currentAutoMode;
