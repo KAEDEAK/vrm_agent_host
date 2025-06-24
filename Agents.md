@@ -168,7 +168,7 @@ TC-10 allowedRemoteIPs 外からの POST が 403 で拒否される
 ────────────────────────────────────────
 6. オープン課題
 ────────────────────────────────────────
-O-1 複数同時再生 (queue) と busy 処理モード "reject" の導入検討
+[Completed] O-1 複数同時再生 (queue) と busy 処理モード "reject" の導入検討
 O-2 WebSocket / RTP ストリーミング化
 O-3 Basic / Token 認証方式の標準化
 O-4 HTTPS 対応・自己署名証明書配布
