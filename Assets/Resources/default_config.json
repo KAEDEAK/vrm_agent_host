@@ -21,7 +21,8 @@
   "wavePlaybackConcurrency": "interrupt",
   "_wavePlaybackConcurrency_note": [
     "interrupt: stop current playback and start new",
-    "queue: enqueue when playing"
+    "queue: enqueue when playing",
+    "reject: return busy when playing"
   ],
   "shadows": {
     "shadowStrength": 0.8,
