@@ -41,9 +41,9 @@ public class WavePlaybackHandler : MonoBehaviour {
     private void InitializeWavePlayback() {
         // Load configuration
         var config = ServerConfig.Instance;
-        if (config?.wave_playback != null) {
-            enableWavePlayback = config.wave_playback.enabled;
-            waveEndpoint = config.wave_playback.endpoint;
+        if (config != null) {
+            enableWavePlayback = config.wavePlaybackEnabled;
+            waveEndpoint = "/waveplay/";
         }
 
         // Get references to other systems

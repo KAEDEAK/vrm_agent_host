@@ -19,6 +19,10 @@
   "waveListenerAutoRestart": true,
   "lipSyncOffsetMs": 0,
   "wavePlaybackConcurrency": "interrupt",
+  "_wavePlaybackConcurrency_note": [
+    "interrupt: stop current playback and start new",
+    "queue: enqueue when playing"
+  ],
   "shadows": {
     "shadowStrength": 0.8,
     "shadowBias": 0.02,
