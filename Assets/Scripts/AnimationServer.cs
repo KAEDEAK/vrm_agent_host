@@ -790,6 +790,7 @@ public class AnimationServer : MonoBehaviour {
 
         if (mode == "queue") {
             if (audioSource != null && audioSource.isPlaying) {
+                item.context = null; // response is already sent, avoid reuse later
                 waveQueue.Enqueue(item);
                 SendWaveJsonResponse(context, 200, "queued", audioId);
                 return;
@@ -845,14 +846,18 @@ public class AnimationServer : MonoBehaviour {
             currentAudioId = audioId;
             playStartTime = Time.time;
             playbackRoutine = StartCoroutine(PlaybackCoroutine(samples, sampleRate, audioId));
-            Telemetry.LogEvent("wave_start", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"bytes", data.Length},{"ip", context.Request.RemoteEndPoint.Address.ToString()}});
-            if (prevId != null)
-                SendWaveJsonResponse(context, 200, "interrupted", audioId, prevId);
-            else
-                SendWaveJsonResponse(context, 200, "ok", audioId);
+            var ip = context != null ? context.Request.RemoteEndPoint.Address.ToString() : "";
+            Telemetry.LogEvent("wave_start", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"bytes", data.Length},{"ip", ip}});
+            if (context != null) {
+                if (prevId != null)
+                    SendWaveJsonResponse(context, 200, "interrupted", audioId, prevId);
+                else
+                    SendWaveJsonResponse(context, 200, "ok", audioId);
+            }
         } catch (Exception e) {
             Debug.LogError($"[Wave] playback error: {e.Message}");
-            SendWaveJsonResponse(context, 500, "internal_error");
+            if (context != null)
+                SendWaveJsonResponse(context, 500, "internal_error");
         }
     }
 
