@@ -42,9 +42,14 @@ public class LipSyncCommandHandler : HttpCommandHandlerBase {
                 int channel = GetQueryInt(query, "channel", 2);
                 float scale = GetQueryFloat(query, "scale", 3.0f);
 
-                _lipSync.StartLipSync(channel, scale);
-                responseData.status = 200;
-                responseData.message = string.Format(i18nMsg.RESPONSE_LIPSYNC_ON, channel);
+                if (!_lipSync.IsInitialized) {
+                    responseData.status = 500;
+                    responseData.message = i18nMsg.ERROR_VRM_MODEL_NOT_LOADED;
+                } else {
+                    _lipSync.StartLipSync(channel, scale);
+                    responseData.status = 200;
+                    responseData.message = string.Format(i18nMsg.RESPONSE_LIPSYNC_ON, channel);
+                }
                 //responseData.message = string.Format(i18nMsg.AUDIOSYNC_ON_RESPONSE, channel);
                 break;
 
