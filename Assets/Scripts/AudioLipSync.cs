@@ -11,9 +11,9 @@ using System;
 using System.Collections.Generic;
 
 public class AudioLipSync : MonoBehaviour {
-    private const int MICROPHONE_CHANNEL_ID = 1;
-    private const int WAVEPLAYBACK_CHANNEL_ID = 2;
-    private const int WASAPI_CHANNEL_ID = 3;
+    private const int WAVEPLAYBACK_CHANNEL_ID = 0;
+    private const int WASAPI_CHANNEL_ID = 1;
+    private const int MICROPHONE_CHANNEL_ID = 2;
     private enum LipSyncSource { None, Microphone, WavePlayback, WASAPI }
     private LipSyncSource currentSource = LipSyncSource.None;
 
@@ -764,9 +764,9 @@ public class AudioLipSync : MonoBehaviour {
             lipSyncInputDuration = lipSyncInputDuration,
             availableChannels = new List<AudioChannelInfo>()
             {
-                new AudioChannelInfo() { id = MICROPHONE_CHANNEL_ID, name = "Microphone" },
                 new AudioChannelInfo() { id = WAVEPLAYBACK_CHANNEL_ID, name = "Wave Playback" },
-                new AudioChannelInfo() { id = WASAPI_CHANNEL_ID, name = "System Audio (WASAPI)" }
+                new AudioChannelInfo() { id = WASAPI_CHANNEL_ID, name = "System Audio (WASAPI)" },
+                new AudioChannelInfo() { id = MICROPHONE_CHANNEL_ID, name = "Microphone" }
             }
         };
         return JsonUtility.ToJson(status);

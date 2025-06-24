@@ -953,8 +953,8 @@ public class AnimationServer : MonoBehaviour {
         try {
             var audioLipSync = FindAnyObjectByType<AudioLipSync>();
             if (audioLipSync != null) {
-                // WavePlaybackチャンネル（ID=2）でLipSyncを開始
-                audioLipSync.StartLipSync(2); // WAVEPLAYBACK_CHANNEL_ID = 2
+                // WavePlaybackチャンネル（ID=0）でLipSyncを開始
+                audioLipSync.StartLipSync(0); // WAVEPLAYBACK_CHANNEL_ID = 0
                 Debug.Log("[WavePlayback] AudioLipSync set to WavePlayback mode");
             } else {
                 Debug.LogWarning("[WavePlayback] AudioLipSync component not found");
