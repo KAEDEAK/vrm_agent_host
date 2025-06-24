@@ -27,6 +27,9 @@
     "_shadowResolution_note": ["Low", "Medium", "High", "VeryHigh"]
   },
   "lipSync": {
+    "lerpSpeed": 0.3,
+    "rmsSmoothing": 0.1,
+    "dynamicRangeThreshold": 0.4,
     "bandRanges": [
       { "key": "Ou", "range": [0, 250] },
       { "key": "Oh", "range": [250, 500] },

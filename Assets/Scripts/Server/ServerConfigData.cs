@@ -50,6 +50,9 @@ public class BandRangeEntry {
 [Serializable]
 public class LipSyncConfig {
     public List<BandRangeEntry> bandRanges = new List<BandRangeEntry>();
+    public float lerpSpeed = 0.2f;
+    public float rmsSmoothing = 0.1f;
+    public float dynamicRangeThreshold = 0.4f;
 }
 
 [Serializable]

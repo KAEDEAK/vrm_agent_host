@@ -60,7 +60,9 @@ public class AudioLipSync : MonoBehaviour {
 
     private const int sampleWindow = 128;
     private float[] samples = new float[sampleWindow];
-    private float lipSyncSmoothing = 0.1f;
+    private float lipSyncSmoothing = 0.1f; // RMS smoothing factor
+    private float lipSyncLerpSpeed = 0.2f; // Expression lerp speed
+    private float dynamicRangeThreshold = 0.4f; // Compression threshold
     private float lastVolume = 0f;
     private bool isLipSyncActive = false;
 
@@ -173,6 +175,10 @@ public class AudioLipSync : MonoBehaviour {
                 Debug.LogWarning($"⚠️ {entry.key} の設定が無効だったので、デフォルト値を使うよ～！");
             }
         }
+
+        lipSyncLerpSpeed = Mathf.Clamp01(ServerConfig.Instance.lipSync.lerpSpeed);
+        lipSyncSmoothing = Mathf.Clamp01(ServerConfig.Instance.lipSync.rmsSmoothing);
+        dynamicRangeThreshold = Mathf.Clamp01(ServerConfig.Instance.lipSync.dynamicRangeThreshold);
     }
 
     private void OnDestroy() {
@@ -288,7 +294,7 @@ public class AudioLipSync : MonoBehaviour {
 
     // BLEND_EXPR モード: 現在の実装（表情との加算）
     private void ApplyBlendExprMode(Dictionary<string, float> phonemeRatios, float scaled) {
-        float lerpSpeed = 0.2f;
+        float lerpSpeed = lipSyncLerpSpeed;
         var keys = new List<string>(currentWeights.Keys);
 
         foreach (var key in keys) {
@@ -346,7 +352,7 @@ public class AudioLipSync : MonoBehaviour {
 
     // FULL モード: 改良前の単純実装（表情との競合を考慮しない直接設定）
     private void ApplyFullMode(Dictionary<string, float> phonemeRatios, float scaled) {
-        float lerpSpeed = 0.2f;
+        float lerpSpeed = lipSyncLerpSpeed;
         var keys = new List<string>(currentWeights.Keys);
 
         foreach (var key in keys) {
@@ -454,7 +460,7 @@ public class AudioLipSync : MonoBehaviour {
         if (input <= 0f) return 0f;
         
         // 閾値: この値以下はそのまま、以上は対数圧縮
-        float threshold = 0.4f;
+        float threshold = dynamicRangeThreshold;
         
         if (input <= threshold) {
             // 弱い値はそのまま
@@ -555,12 +561,12 @@ public class AudioLipSync : MonoBehaviour {
 
         float rms = (sampleCount > 0) ? Mathf.Sqrt(sum / sampleCount) : 0f;
         lock (wasapiLock) {
-            wasapiVolume = rms;
+            wasapiVolume = Mathf.Lerp(wasapiVolume, rms, lipSyncSmoothing);
         }
     }
 
     public void FeedWaveRms(float rms) {
-        waveRms = rms;
+        waveRms = Mathf.Lerp(waveRms, rms, lipSyncSmoothing);
     }
 
     // RealtimeAudioSource用のFFTデータ受信メソッド
