@@ -1,0 +1,203 @@
+{
+  "data": {
+    "default": "en",
+    "langs": [
+      {
+        "lang": "en",
+        "msgs": [
+          { "id": "title.main", "txt": "General VRM Agent Host" },
+          { "id": "section.vrm.title", "txt": "Load and display VRM(VRoid)" },
+          { "id": "section.vrm.sub.title", "txt": "[SET] VRM File Load" },
+          { "id": "label.vrmfile", "txt": "VRM file:" },
+          { "id": "placeholder.result", "txt": "Result" },
+  
+          { "id": "section.camera.title", "txt": "Camera Control" },
+          { "id": "camera.ortho.title", "txt": "[SET] Toggle Orthographic Mode" },
+          { "id": "label.orthoMode", "txt": "Orthographic Mode:" },
+          { "id": "camera.size.title", "txt": "[SET] Set Orthographic Size" },
+          { "id": "label.orthoSize", "txt": "Size:" },
+  
+          { "id": "section.lipsync.title", "txt": "Audio Reactive Lip Sync" },
+          { "id": "lipsync.getstatus", "txt": "[GET] Get Lip Sync Status" },
+          { "id": "lipsync.on.title", "txt": "[SET] Audio Reactive Lip Sync ON" },
+          { "id": "label.channel", "txt": "Channel:" },
+          { "id": "label.scale", "txt": "Scale:" },
+          { "id": "lipsync.off.title", "txt": "[SET] Audio Reactive Lip Sync OFF" },
+  
+          { "id": "section.vrma.title", "txt": "VRMAnimation: Load and play" },
+          { "id": "vrma.play.title", "txt": "[SET] Play VRMA file" },
+          { "id": "label.vrmafile", "txt": "VRMA file:" },
+  
+          { "id": "section.anim.title", "txt": "Animation using Anime Girl Idle Animation" },
+          { "id": "anim.list.title", "txt": "[GET] Get Animation List / Status" },
+          { "id": "anim.play.title", "txt": "[SET] Play Animation (play)" },
+          { "id": "label.animationID", "txt": "Animation ID:" },
+          { "id": "anim.stop.title", "txt": "[SET] Stop / Resume" },
+  
+          { "id": "section.blend.title", "txt": "VRoid Standard Blend Shapes" },
+          { "id": "blend.apply.title", "txt": "[SET] Apply Expression (shape)" },
+          { "id": "label.blendShape", "txt": "BlendShape:" },
+          { "id": "placeholder.lipsync", "txt": "If Aa doesn't apply, turn off Audio Reactive Lip Sync first." },
+  
+          { "id": "section.blink.title", "txt": "Blink Control" },
+          { "id": "blink.autoblink.title", "txt": "[SET] autoBlink" },
+          { "id": "label.freq", "txt": "freq (ms):" },
+          { "id": "blink.manual.title", "txt": "[SET] Manually Set/Reset Blink" },
+          { "id": "label.blinkLeft", "txt": "BlinkLeft:" },
+          { "id": "label.blinkRight", "txt": "BlinkRight:" },
+  
+          { "id": "section.loc.title", "txt": "Avatar Position & Rotation Commands (Test)" },
+          { "id": "loc.get.title", "txt": "[GET] Get Avatar Position (getLoc)" },
+          { "id": "loc.set.title", "txt": "[SET] Set Avatar Position (setLoc)" },
+          { "id": "label.xyz", "txt": "XYZ:" },
+          { "id": "rot.get.title", "txt": "[GET] Get Avatar Rotation (getRot)" },
+          { "id": "rot.set.title", "txt": "[SET] Set Avatar Rotation (setRot)" },
+  
+          { "id": "section.move.title", "txt": "Continuous Move / Rotate Commands (Test)" },
+          { "id": "move.from.title", "txt": "[SET] Continuous Move (move) - with from" },
+          { "id": "label.from", "txt": "From:" },
+          { "id": "label.to", "txt": "To:" },
+          { "id": "label.duration", "txt": "Duration:" },
+          { "id": "label.delta", "txt": "Delta:" },
+  
+          { "id": "move.noFrom.title", "txt": "[SET] Continuous Move (move) - no from" },
+          { "id": "rotate.from.title", "txt": "[SET] Continuous Rotation (rotate) - with from" },
+          { "id": "rotate.noFrom.title", "txt": "[SET] Continuous Rotation (rotate) - no from" },
+          { "id": "move.stop.title", "txt": "[SET] Stop Move (stop_move)" },
+          { "id": "rotate.stop.title", "txt": "[SET] Stop Rotate (stop_rotate)" },
+  
+          { "id": "section.bg.title", "txt": "Background Image" },
+          { "id": "bg.switch.title", "txt": "[SET] Switch Background Image" },
+          { "id": "label.bgFile", "txt": "Image File:" },
+  
+          { "id": "section.bg.fill", "txt": "Background color fill (test)" },
+          { "id": "bg.fill.title", "txt": "Change Background Color (fill color)" },
+  
+          { "id": "section.server.title", "txt": "Server commands" },
+          { "id": "server.transparent.title", "txt": "[SET] Make Window Transparent (transparent)" },
+          { "id": "server.stayon.title", "txt": "[SET] Keep Window on Top (stayOnTop)" },
+          { "id": "server.drag.title", "txt": "[SET] Allow Object Drag (allowDragObjects)" },
+          { "id": "server.status.title", "txt": "[GET] Get Server Status (getstatus)" },
+          { "id": "server.terminate.title", "txt": "[SET] Stop Server (terminate)" },
+  
+          { "id": "section.credits.title", "txt": "Credits" },
+          { "id": "credits.license.title", "txt": "License Information" },
+          
+          { "id": "btn.send", "txt": "Send" },
+          { "id": "btn.refresh", "txt": "Update List" },
+          { "id": "btn.blue", "txt": "Blue" },
+          { "id": "btn.magenta", "txt": "Magenta" },
+          { "id": "btn.green", "txt": "Green" },
+          { "id": "btn.black", "txt": "Black" },
+          { "id": "btn.white", "txt": "White" },
+          { "id": "placeholder.logs", "txt": "Loading credits info..." },
+  
+          { "id": "toc.title", "txt": "Table of Contents" },
+          { "id": "info.lipsync", "txt": "Audio Reactive Lip Sync uses \"Aa\". If active, \"Aa\" might not be applied. Please disable it first if needed." },
+          { "id": "info.move", "txt": "The \"duration\" unit is msec (1000 = 1 second). \"delta\" splits movement into segments for speed distribution." },
+          { "id": "server.transparent.enable", "txt": "Enable transparency (with color):" },
+          { "id": "server.transparent.disable", "txt": "Disable transparency:" },
+          { "id": "label.language", "txt": "Language:" }
+        ]
+      },
+      {
+        "lang": "ja",
+        "msgs": [
+          { "id": "title.main", "txt": "General VRM Agent Host" },
+          { "id": "section.vrm.title", "txt": "VRM(VRoid)の読み込み表示" },
+          { "id": "section.vrm.sub.title", "txt": "[SET] VRMファイル読み込み" },
+          { "id": "label.vrmfile", "txt": "VRMファイル：" },
+          { "id": "placeholder.result", "txt": "結果" },
+  
+          { "id": "section.camera.title", "txt": "カメラ制御" },
+          { "id": "camera.ortho.title", "txt": "[SET] Orthographic モード切り替え" },
+          { "id": "label.orthoMode", "txt": "Orthographic モード：" },
+          { "id": "camera.size.title", "txt": "[SET] Orthographic Size 設定" },
+          { "id": "label.orthoSize", "txt": "サイズ：" },
+  
+          { "id": "section.lipsync.title", "txt": "Audio Reactive Lip Sync" },
+          { "id": "lipsync.getstatus", "txt": "[GET] リップシンクステータス取得" },
+          { "id": "lipsync.on.title", "txt": "[SET] Audio Reactive リップシンク ON" },
+          { "id": "label.channel", "txt": "チャンネル：" },
+          { "id": "label.scale", "txt": "音量スケール：" },
+          { "id": "lipsync.off.title", "txt": "[SET] Audio Reactive リップシンク OFF" },
+  
+          { "id": "section.vrma.title", "txt": "VRMAnimation: 読み込み・再生" },
+          { "id": "vrma.play.title", "txt": "[SET] VRMAファイル再生" },
+          { "id": "label.vrmafile", "txt": "VRMAファイル：" },
+  
+          { "id": "section.anim.title", "txt": "アニメーションクリップ再生 (Anime Girl Idle Animation)" },
+          { "id": "anim.list.title", "txt": "[GET] アニメ一覧・ステータス取得" },
+          { "id": "anim.play.title", "txt": "[SET] アニメ再生 (play)" },
+          { "id": "label.animationID", "txt": "アニメID：" },
+          { "id": "anim.stop.title", "txt": "[SET] 停止 / 再開" },
+  
+          { "id": "section.blend.title", "txt": "VRoid標準ブレンドシェイプ" },
+          { "id": "blend.apply.title", "txt": "[SET] 表情適用 (shape)" },
+          { "id": "label.blendShape", "txt": "表情プリセット：" },
+          { "id": "placeholder.lipsync", "txt": "Aaが反映されない場合はリップシンクをOFFにしてね" },
+  
+          { "id": "section.blink.title", "txt": "まばたき制御" },
+          { "id": "blink.autoblink.title", "txt": "[SET] autoBlink" },
+          { "id": "label.freq", "txt": "頻度 (ms):" },
+          { "id": "blink.manual.title", "txt": "[SET] まばたき手動設定/リセット" },
+          { "id": "label.blinkLeft", "txt": "左まぶた:" },
+          { "id": "label.blinkRight", "txt": "右まぶた:" },
+  
+          { "id": "section.loc.title", "txt": "アバター座標・回転コマンド (テスト)" },
+          { "id": "loc.get.title", "txt": "[GET] アバター座標取得 (getLoc)" },
+          { "id": "loc.set.title", "txt": "[SET] アバター座標設定 (setLoc)" },
+          { "id": "label.xyz", "txt": "座標(XYZ)：" },
+          { "id": "rot.get.title", "txt": "[GET] アバター回転取得 (getRot)" },
+          { "id": "rot.set.title", "txt": "[SET] アバター回転設定 (setRot)" },
+  
+          { "id": "section.move.title", "txt": "継続した移動・回転コマンド (テスト)" },
+          { "id": "move.from.title", "txt": "[SET] 連続移動 (move) - from付き" },
+          { "id": "label.from", "txt": "開始座標:" },
+          { "id": "label.to", "txt": "終了座標:" },
+          { "id": "label.duration", "txt": "移動時間[ms]:" },
+          { "id": "label.delta", "txt": "速度配分(delta):" },
+  
+          { "id": "move.noFrom.title", "txt": "[SET] 連続移動 (move) - fromなし" },
+          { "id": "rotate.from.title", "txt": "[SET] 連続回転 (rotate) - from付き" },
+          { "id": "rotate.noFrom.title", "txt": "[SET] 連続回転 (rotate) - fromなし" },
+          { "id": "move.stop.title", "txt": "[SET] 移動停止 (stop_move)" },
+          { "id": "rotate.stop.title", "txt": "[SET] 回転停止 (stop_rotate)" },
+  
+          { "id": "section.bg.title", "txt": "背景画像" },
+          { "id": "bg.switch.title", "txt": "[SET] 背景画像の切り替え" },
+          { "id": "label.bgFile", "txt": "画像ファイル：" },
+  
+          { "id": "section.bg.fill", "txt": "背景色塗りつぶし (テスト)" },
+          { "id": "bg.fill.title", "txt": "背景色変更 (fill color)" },
+  
+          { "id": "section.server.title", "txt": "サーバーコマンド" },
+          { "id": "server.transparent.title", "txt": "[SET] ウィンドウ透明化 (transparent)" },
+          { "id": "server.stayon.title", "txt": "[SET] ウィンドウ常に最前面 (stayOnTop)" },
+          { "id": "server.drag.title", "txt": "[SET] オブジェクトドラッグ許可 (allowDragObjects)" },
+          { "id": "server.status.title", "txt": "[GET] サーバーステータス取得 (getstatus)" },
+          { "id": "server.terminate.title", "txt": "[SET] サーバー停止 (terminate)" },
+  
+          { "id": "section.credits.title", "txt": "クレジット" },
+          { "id": "credits.license.title", "txt": "ライセンス情報" },
+          
+          { "id": "btn.send", "txt": "送信" },
+          { "id": "btn.refresh", "txt": "一覧の更新" },
+          { "id": "btn.blue", "txt": "青" },
+          { "id": "btn.magenta", "txt": "マゼンタ" },
+          { "id": "btn.green", "txt": "緑" },
+          { "id": "btn.black", "txt": "黒" },
+          { "id": "btn.white", "txt": "白" },
+          { "id": "placeholder.logs", "txt": "ライセンス情報をロードしています..." },
+  
+          { "id": "toc.title", "txt": "目次" },
+          { "id": "info.lipsync", "txt": "Audio Reactive Lip Sync は \"Aa\" を使用しています。有効な場合、\"Aa\" が適用されないかもしれません。必要なら先にオフにしてください。" },
+          { "id": "info.move", "txt": "duration の単位は msec（1000=1秒）です。delta は移動を複数区間に分割し、それぞれの速度配分を定義します。" },
+          { "id": "server.transparent.enable", "txt": "ウィンドウ透明化（色付き）を有効にする:" },
+          { "id": "server.transparent.disable", "txt": "ウィンドウ透明化を無効にする:" },
+          { "id": "label.language", "txt": "言語：" }
+        ]
+      }
+    ]
+  }
+}
