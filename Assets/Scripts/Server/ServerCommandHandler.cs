@@ -196,7 +196,9 @@ public class ServerCommandHandler : HttpCommandHandlerBase {
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     try {
                         var req = WebRequest.Create($"http://localhost:{ServerConfig.Instance.httpPort}/waveplay/ping");
-                        using var resp = req.GetResponse();
+                        using (var resp = req.GetResponse()) {
+                            // simply acquiring response to check listener
+                        }
                         sw.Stop();
                         responseData.status = 200;
                         responseData.message = new Dictionary<string, object>{

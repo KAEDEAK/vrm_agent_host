@@ -174,6 +174,7 @@ public class WavePlaybackHandler : MonoBehaviour {
         // Start playback through AudioChannelManager
         if (audioChannelManager != null) {
             audioChannelManager.PlayAudioClip(streamingClip, 1f, false);
+            AttachLipSyncCapture(audioChannelManager.GetMasterAudioSource());
             Debug.Log("[WavePlaybackHandler] Started audio playback through AudioChannelManager");
         } else {
             // Fallback: Create a simple AudioSource for direct playback
@@ -183,6 +184,7 @@ public class WavePlaybackHandler : MonoBehaviour {
             audioSource.clip = streamingClip;
             audioSource.volume = 1f;
             audioSource.Play();
+            AttachLipSyncCapture(audioSource);
             Debug.Log("[WavePlaybackHandler] Started audio playback with fallback AudioSource");
         }
 
@@ -192,6 +194,25 @@ public class WavePlaybackHandler : MonoBehaviour {
         }
 
         Debug.Log("[WavePlaybackHandler] Started audio playback");
+    }
+
+    private void AttachLipSyncCapture(AudioSource audioSource) {
+        try {
+            if (audioSource == null) return;
+
+            var captureType = System.Type.GetType("AudioSourceLipSyncCapture");
+            if (captureType == null) return;
+
+            var existing = audioSource.GetComponent(captureType);
+            if (existing != null) {
+                Destroy(existing);
+            }
+
+            audioSource.gameObject.AddComponent(captureType);
+        }
+        catch (System.Exception ex) {
+            Debug.LogWarning($"[WavePlaybackHandler] Failed to attach LipSyncCapture: {ex.Message}");
+        }
     }
 
     private void StopAudioPlayback() {

@@ -143,7 +143,7 @@ public abstract class HttpCommandHandlerBase : IHttpCommandHandler {
     /// </summary>
     protected bool TryParseColor(string hex, out Color color) {
         if (string.IsNullOrEmpty(hex)) {
-            color = default;
+            color = default(Color);
             return false;
         }
         string normalized = hex.StartsWith("#") ? hex : "#" + hex;
