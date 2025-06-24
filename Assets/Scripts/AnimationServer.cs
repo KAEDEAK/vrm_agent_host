@@ -52,7 +52,10 @@ public class AnimationServer : MonoBehaviour {
     private float playStartTime;
     private AudioLipSync lipSync;
     private readonly System.Collections.Generic.Queue<WaveItem> waveQueue = new System.Collections.Generic.Queue<WaveItem>();
+    private readonly object waveQueueLock = new object(); // Thread safety for queue operations
     private string lastConcurrency;
+    private const int MAX_QUEUE_SIZE = 10; // Prevent memory buildup
+    private volatile bool isProcessingWave = false; // Prevent concurrent wave processing
 
     private class WaveItem {
         public byte[] data;
@@ -60,6 +63,7 @@ public class AnimationServer : MonoBehaviour {
         public string id;
         public float volume;
         public bool? spatial;
+        public DateTime enqueuedTime; // Track when item was queued for cleanup
     }
 
     #region sanitize
@@ -290,6 +294,9 @@ public class AnimationServer : MonoBehaviour {
     private void StopServer() {
         _serverStopping = true;
 
+        // Clean up wave playback resources
+        CleanupWavePlayback();
+
         if (httpListener != null)
             StopListener(ref httpListener, ref httpThread, "HTTP");
 
@@ -297,6 +304,45 @@ public class AnimationServer : MonoBehaviour {
             StopListener(ref httpsListener, ref httpsThread, "HTTPS");
 
         Debug.Log("🛑 AnimationServer stopped completely.");
+    }
+
+    private void CleanupWavePlayback() {
+        try {
+            // Stop current playback
+            if (audioSource != null && audioSource.isPlaying) {
+                audioSource.Stop();
+            }
+
+            // Stop playback coroutine
+            if (playbackRoutine != null) {
+                try {
+                    StopCoroutine(playbackRoutine);
+                } catch (Exception ex) {
+                    Debug.LogWarning($"[Wave] Error stopping playback coroutine during cleanup: {ex.Message}");
+                }
+                playbackRoutine = null;
+            }
+
+            // Clear queue and send cancellation responses
+            lock (waveQueueLock) {
+                while (waveQueue.Count > 0) {
+                    var item = waveQueue.Dequeue();
+                    try {
+                        SendWaveJsonResponse(item.context, 503, "server_stopping", item.id);
+                    } catch (Exception ex) {
+                        Debug.LogWarning($"[Wave] Failed to send shutdown response for {item.id}: {ex.Message}");
+                    }
+                }
+            }
+
+            // Clear state
+            currentAudioId = null;
+            isProcessingWave = false;
+
+            Debug.Log("[Wave] Cleanup completed during server shutdown");
+        } catch (Exception ex) {
+            Debug.LogError($"[Wave] Error during cleanup: {ex.Message}");
+        }
     }
 
     private void StopListener(ref HttpListener listener, ref Thread thread, string label) {
@@ -779,80 +825,205 @@ public class AnimationServer : MonoBehaviour {
     }
 
     private void EnqueueWave(byte[] data, HttpListenerContext context, string audioId, float headerVolume, bool? spatialOverride) {
+        // Prevent concurrent wave processing to avoid crashes
+        if (isProcessingWave) {
+            Debug.LogWarning($"[Wave] Concurrent wave processing detected, rejecting request {audioId}");
+            SendWaveJsonResponse(context, 429, "too_many_requests");
+            return;
+        }
+
         var config = ServerConfig.Instance;
         string mode = config?.wavePlaybackConcurrency ?? "interrupt";
-        if (lastConcurrency != mode) {
-            if (lastConcurrency == "queue" && mode != "queue") waveQueue.Clear();
-            lastConcurrency = mode;
-        }
+        
+        // Thread-safe queue management
+        lock (waveQueueLock) {
+            if (lastConcurrency != mode) {
+                if (lastConcurrency == "queue" && mode != "queue") {
+                    // Clear queue when switching away from queue mode
+                    while (waveQueue.Count > 0) {
+                        var oldItem = waveQueue.Dequeue();
+                        try {
+                            SendWaveJsonResponse(oldItem.context, 410, "cancelled", oldItem.id);
+                        } catch (Exception ex) {
+                            Debug.LogWarning($"[Wave] Failed to send cancellation response: {ex.Message}");
+                        }
+                    }
+                }
+                lastConcurrency = mode;
+            }
 
-        var item = new WaveItem{ data = data, context = context, id = audioId, volume = headerVolume, spatial = spatialOverride };
+            var item = new WaveItem { 
+                data = data, 
+                context = context, 
+                id = audioId, 
+                volume = headerVolume, 
+                spatial = spatialOverride,
+                enqueuedTime = DateTime.Now
+            };
 
-        if (mode == "queue") {
-            if (audioSource != null && audioSource.isPlaying) {
-                waveQueue.Enqueue(item);
-                SendWaveJsonResponse(context, 200, "queued", audioId);
+            if (mode == "queue") {
+                if (audioSource != null && audioSource.isPlaying) {
+                    // Check queue size limit to prevent memory buildup
+                    if (waveQueue.Count >= MAX_QUEUE_SIZE) {
+                        // Remove oldest item from queue
+                        var oldestItem = waveQueue.Dequeue();
+                        try {
+                            SendWaveJsonResponse(oldestItem.context, 410, "queue_full_dropped", oldestItem.id);
+                        } catch (Exception ex) {
+                            Debug.LogWarning($"[Wave] Failed to send queue full response: {ex.Message}");
+                        }
+                        Debug.LogWarning($"[Wave] Queue full, dropped oldest item {oldestItem.id}");
+                    }
+                    
+                    waveQueue.Enqueue(item);
+                    SendWaveJsonResponse(context, 200, "queued", audioId);
+                    Debug.Log($"[Wave] Queued item {audioId}, queue size: {waveQueue.Count}");
+                    return;
+                }
+                // If not playing, play immediately
+                PlayWave(item);
                 return;
             }
+            
+            if (mode == "reject" && audioSource != null && audioSource.isPlaying) {
+                SendWaveJsonResponse(context, 409, "busy");
+                return;
+            }
+            
             PlayWave(item);
-            return;
         }
-        if (mode == "reject" && audioSource != null && audioSource.isPlaying) {
-            SendWaveJsonResponse(context, 409, "busy");
-            return;
-        }
-        PlayWave(item);
     }
 
     private void PlayWave(WaveItem item) {
-        var data = item.data;
-        var context = item.context;
-        string audioId = item.id;
-        float headerVolume = item.volume;
-        bool? spatialOverride = item.spatial;
-        
-        if (audioSource == null) {
-            var go = new GameObject("WavePlaybackSource");
-            audioSource = go.AddComponent<AudioSource>();
-            
-            // AudioSourceLipSyncCaptureコンポーネントを追加して実際の音声出力をキャプチャ
-            var lipSyncCapture = go.AddComponent<AudioSourceLipSyncCapture>();
-            Debug.Log("[AnimationServer] AudioSourceLipSyncCapture component added to WavePlaybackSource");
-        }
-        if (lipSync == null) lipSync = GameObject.FindObjectOfType<AudioLipSync>();
+        // Set processing flag to prevent concurrent execution
+        isProcessingWave = true;
         
         try {
+            var data = item.data;
+            var context = item.context;
+            string audioId = item.id;
+            float headerVolume = item.volume;
+            bool? spatialOverride = item.spatial;
+            
+            // Validate data before processing
+            if (data == null || data.Length == 0) {
+                Debug.LogError($"[Wave] Invalid audio data for {audioId}");
+                SendWaveJsonResponse(context, 400, "invalid_data");
+                return;
+            }
+            
+            // Initialize AudioSource if needed
+            if (audioSource == null) {
+                var go = new GameObject("WavePlaybackSource");
+                audioSource = go.AddComponent<AudioSource>();
+                
+                // AudioSourceLipSyncCaptureコンポーネントを追加して実際の音声出力をキャプチャ
+                var lipSyncCapture = go.AddComponent<AudioSourceLipSyncCapture>();
+                Debug.Log("[AnimationServer] AudioSourceLipSyncCapture component added to WavePlaybackSource");
+            }
+            
+            // Get LipSync reference if needed
+            if (lipSync == null) {
+                lipSync = GameObject.FindObjectOfType<AudioLipSync>();
+            }
+            
+            // Parse WAV data
             if (!TryParseWav(data, out float[] samples, out int sampleRate)) {
+                Debug.LogError($"[Wave] Failed to parse WAV data for {audioId}");
                 SendWaveJsonResponse(context, 422, "invalid_wav");
                 return;
             }
-            var clip = AudioClip.Create("wave", samples.Length, 1, sampleRate, false);
+            
+            // Validate parsed data
+            if (samples == null || samples.Length == 0) {
+                Debug.LogError($"[Wave] No audio samples extracted for {audioId}");
+                SendWaveJsonResponse(context, 422, "no_audio_data");
+                return;
+            }
+            
+            // Create AudioClip
+            var clip = AudioClip.Create($"wave_{audioId}", samples.Length, 1, sampleRate, false);
+            if (clip == null) {
+                Debug.LogError($"[Wave] Failed to create AudioClip for {audioId}");
+                SendWaveJsonResponse(context, 500, "clip_creation_failed");
+                return;
+            }
+            
             clip.SetData(samples, 0);
+            
+            // Configure audio settings
             var config = ServerConfig.Instance;
             bool spatial = spatialOverride ?? (config?.waveSpatializationEnabled ?? true);
             audioSource.spatialBlend = spatial ? 1f : 0f;
             float baseVol = config?.wavePlaybackVolume ?? 1.0f;
+            
+            // Handle interruption of current playback
             string prevId = null;
             if (audioSource.isPlaying) {
                 prevId = currentAudioId;
                 audioSource.Stop();
-                if (playbackRoutine != null) StopCoroutine(playbackRoutine);
-                Telemetry.LogEvent("wave_interrupt", new System.Collections.Generic.Dictionary<string, object>{{"old_id", prevId},{"new_id", audioId}});
+                
+                // Safely stop previous coroutine
+                if (playbackRoutine != null) {
+                    try {
+                        StopCoroutine(playbackRoutine);
+                    } catch (Exception ex) {
+                        Debug.LogWarning($"[Wave] Error stopping previous coroutine: {ex.Message}");
+                    }
+                    playbackRoutine = null;
+                }
+                
+                Telemetry.LogEvent("wave_interrupt", new System.Collections.Generic.Dictionary<string, object>{
+                    {"old_id", prevId},
+                    {"new_id", audioId}
+                });
             }
+            
+            // Start new playback
             audioSource.volume = baseVol * headerVolume;
             audioSource.clip = clip;
             audioSource.Play();
             currentAudioId = audioId;
             playStartTime = Time.time;
+            
+            // Start playback coroutine
             playbackRoutine = StartCoroutine(PlaybackCoroutine(samples, sampleRate, audioId));
-            Telemetry.LogEvent("wave_start", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"bytes", data.Length},{"ip", context.Request.RemoteEndPoint.Address.ToString()}});
-            if (prevId != null)
+            
+            // Log telemetry
+            string clientIp = "unknown";
+            try {
+                clientIp = context?.Request?.RemoteEndPoint?.Address?.ToString() ?? "unknown";
+            } catch (Exception ex) {
+                Debug.LogWarning($"[Wave] Could not get client IP: {ex.Message}");
+            }
+            
+            Telemetry.LogEvent("wave_start", new System.Collections.Generic.Dictionary<string, object>{
+                {"id", audioId},
+                {"bytes", data.Length},
+                {"sample_rate", sampleRate},
+                {"duration_seconds", samples.Length / (float)sampleRate},
+                {"ip", clientIp}
+            });
+            
+            // Send response
+            if (prevId != null) {
                 SendWaveJsonResponse(context, 200, "interrupted", audioId, prevId);
-            else
+            } else {
                 SendWaveJsonResponse(context, 200, "ok", audioId);
+            }
+            
+            Debug.Log($"[Wave] Started playback for {audioId}, duration: {samples.Length / (float)sampleRate:F2}s");
+            
         } catch (Exception e) {
-            Debug.LogError($"[Wave] playback error: {e.Message}");
-            SendWaveJsonResponse(context, 500, "internal_error");
+            Debug.LogError($"[Wave] Critical error in PlayWave: {e.Message}\n{e.StackTrace}");
+            try {
+                SendWaveJsonResponse(item.context, 500, "internal_error");
+            } catch (Exception responseEx) {
+                Debug.LogError($"[Wave] Failed to send error response: {responseEx.Message}");
+            }
+        } finally {
+            // Always clear the processing flag
+            isProcessingWave = false;
         }
     }
 
@@ -861,23 +1032,86 @@ public class AnimationServer : MonoBehaviour {
         var config = ServerConfig.Instance;
         float offset = (config?.lipSyncOffsetMs ?? 0) / 1000f;
         float nextTime = Time.time + offset;
+        bool playbackCompleted = false;
+        
+        // Main playback loop
         for (int i = 0; i < samples.Length; i += step) {
+            // Check if we should stop (server stopping or audio source destroyed)
+            if (_serverStopping || audioSource == null || !audioSource.isPlaying) {
+                Debug.Log($"[Wave] Playback interrupted for {audioId}");
+                break;
+            }
+            
             float sum = 0f;
             int count = 0;
-            for (int j = 0; j < step && i + j < samples.Length; j++) { sum += samples[i + j] * samples[i + j]; count++; }
+            for (int j = 0; j < step && i + j < samples.Length; j++) { 
+                sum += samples[i + j] * samples[i + j]; 
+                count++; 
+            }
             float rms = Mathf.Sqrt(sum / count);
-            lipSync?.FeedWaveRms(rms);
+            
+            // Safely feed RMS data to lip sync
+            try {
+                lipSync?.FeedWaveRms(rms);
+            } catch (Exception ex) {
+                Debug.LogWarning($"[Wave] Error feeding RMS to lip sync: {ex.Message}");
+            }
+            
             float delay = nextTime - Time.time;
-            if (delay > 0f) yield return new WaitForSeconds(delay); else yield return null;
+            if (delay > 0f) {
+                yield return new WaitForSeconds(delay);
+            } else {
+                yield return null;
+            }
             nextTime += 0.01f;
         }
-        lipSync?.FeedWaveRms(0f);
-        Telemetry.LogEvent("wave_complete", new System.Collections.Generic.Dictionary<string, object>{{"id", audioId},{"duration_ms", (int)((Time.time - playStartTime)*1000)}});
+        
+        playbackCompleted = true;
+        
+        // Cleanup operations
+        try {
+            lipSync?.FeedWaveRms(0f);
+        } catch (Exception ex) {
+            Debug.LogWarning($"[Wave] Error clearing lip sync: {ex.Message}");
+        }
+        
+        // Log completion
+        try {
+            Telemetry.LogEvent("wave_complete", new System.Collections.Generic.Dictionary<string, object>{
+                {"id", audioId},
+                {"duration_ms", (int)((Time.time - playStartTime)*1000)}
+            });
+        } catch (Exception ex) {
+            Debug.LogWarning($"[Wave] Error logging telemetry: {ex.Message}");
+        }
+        
+        // Clear current state
         currentAudioId = null;
         playbackRoutine = null;
-        if ((config?.wavePlaybackConcurrency ?? "interrupt") == "queue" && waveQueue.Count > 0) {
-            var nextItem = waveQueue.Dequeue();
-            PlayWave(nextItem);
+        
+        // Process next item in queue (thread-safe)
+        WaveItem nextItem = null;
+        lock (waveQueueLock) {
+            var currentConfig = ServerConfig.Instance;
+            if ((currentConfig?.wavePlaybackConcurrency ?? "interrupt") == "queue" && waveQueue.Count > 0) {
+                nextItem = waveQueue.Dequeue();
+                Debug.Log($"[Wave] Processing next queued item {nextItem.id}, remaining queue: {waveQueue.Count}");
+            }
+        }
+        
+        // Play next item if available
+        if (nextItem != null) {
+            try {
+                PlayWave(nextItem);
+            } catch (Exception ex) {
+                Debug.LogError($"[Wave] Error playing next queued item {nextItem.id}: {ex.Message}");
+                // Try to send error response for the failed item
+                try {
+                    SendWaveJsonResponse(nextItem.context, 500, "playback_error", nextItem.id);
+                } catch (Exception responseEx) {
+                    Debug.LogError($"[Wave] Failed to send error response for {nextItem.id}: {responseEx.Message}");
+                }
+            }
         }
     }
 
@@ -919,23 +1153,41 @@ public class AnimationServer : MonoBehaviour {
     }
 
     private void SendWaveJsonResponse(HttpListenerContext ctx, int status, string msg, string id = null, string prevId = null) {
-        string body;
-        if (prevId != null)
-            body = $"{{\"status\":\"{msg}\",\"prev_id\":\"{prevId}\",\"id\":\"{id}\"}}";
-        else if (id != null)
-            body = $"{{\"status\":\"{msg}\",\"id\":\"{id}\"}}";
-        else
-            body = $"{{\"status\":\"{msg}\"}}";
-        var buf = System.Text.Encoding.UTF8.GetBytes(body);
-        ctx.Response.StatusCode = status;
-        ctx.Response.ContentType = "application/json";
-        ctx.Response.ContentLength64 = buf.Length;
+        if (ctx == null) {
+            Debug.LogWarning("[Wave] Cannot send response: HttpListenerContext is null");
+            return;
+        }
+
         try {
+            string body;
+            if (prevId != null)
+                body = $"{{\"status\":\"{msg}\",\"prev_id\":\"{prevId}\",\"id\":\"{id}\"}}";
+            else if (id != null)
+                body = $"{{\"status\":\"{msg}\",\"id\":\"{id}\"}}";
+            else
+                body = $"{{\"status\":\"{msg}\"}}";
+            
+            var buf = System.Text.Encoding.UTF8.GetBytes(body);
+            
+            // Check if response is still valid before accessing it
+            if (ctx.Response == null) {
+                Debug.LogWarning("[Wave] Cannot send response: HttpListenerResponse is null");
+                return;
+            }
+            
+            ctx.Response.StatusCode = status;
+            ctx.Response.ContentType = "application/json";
+            ctx.Response.ContentLength64 = buf.Length;
+            
             using (var s = ctx.Response.OutputStream) {
                 s.Write(buf, 0, buf.Length);
             }
+        } catch (ObjectDisposedException ex) {
+            Debug.LogWarning($"[Wave] HttpListenerContext was disposed, cannot send response: {ex.Message}");
+        } catch (InvalidOperationException ex) {
+            Debug.LogWarning($"[Wave] HttpListenerContext is in invalid state: {ex.Message}");
         } catch (Exception ex) {
-            Debug.LogWarning($"⚠️ SendWaveJsonResponse transport failure: {ex.Message}");
+            Debug.LogWarning($"[Wave] SendWaveJsonResponse transport failure: {ex.Message}");
         }
     }
 

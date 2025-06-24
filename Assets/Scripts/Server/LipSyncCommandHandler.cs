@@ -12,6 +12,11 @@ public class LipSyncCommandHandler : HttpCommandHandlerBase {
         _lipSync = lipSync;
     }
 
+    private bool IsValidChannelId(int channelId) {
+        // Valid channel IDs: 0 (WavePlayback), 1 (External), 2 (Microphone)
+        return channelId >= 0 && channelId <= 2;
+    }
+
     public override void HandleCommand(HttpListenerContext context, NameValueCollection query) {
         var responseData = new ServerResponse();
 
@@ -46,9 +51,15 @@ public class LipSyncCommandHandler : HttpCommandHandlerBase {
                     responseData.status = 500;
                     responseData.message = i18nMsg.ERROR_VRM_MODEL_NOT_LOADED;
                 } else {
-                    _lipSync.StartLipSync(channel, scale);
-                    responseData.status = 200;
-                    responseData.message = string.Format(i18nMsg.RESPONSE_LIPSYNC_ON, channel);
+                    // Validate channel ID before starting lip sync
+                    if (IsValidChannelId(channel)) {
+                        _lipSync.StartLipSync(channel, scale);
+                        responseData.status = 200;
+                        responseData.message = string.Format(i18nMsg.RESPONSE_LIPSYNC_ON, channel);
+                    } else {
+                        responseData.status = 400;
+                        responseData.message = $"無効なチャンネルID: {channel}. 有効なチャンネル: 0 (WavePlayback), 1 (External), 2 (Microphone)";
+                    }
                 }
                 //responseData.message = string.Format(i18nMsg.AUDIOSYNC_ON_RESPONSE, channel);
                 break;
