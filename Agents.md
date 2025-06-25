@@ -46,9 +46,9 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
 ────────────────────────────────────────
 
 3.1 WAVE受信エンドポイント
-[Implemented] F-1  リスナーは wavePlaybackEnabled == true でのみ起動する。
-[Implemented] F-2  メイン HTTP ポート(既定 34560)で動作。専用ポート設定は廃止。
-[Implemented] F-3  POST /waveplay/     (AnimationServer と同じポート)
+[Completed] F-1  リスナーは wavePlaybackEnabled == true でのみ起動する。
+[Completed] F-2  メイン HTTP ポート(既定 34560)で動作。専用ポート設定は廃止。
+[Completed] F-3  POST /waveplay/     (AnimationServer と同じポート)
       ヘッダー:
         Content-Type     : audio/wav  (必須)
         X-Audio-ID       : 文字列     (任意)
@@ -56,11 +56,11 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
         X-Speaker        : 任意文字列 (将来拡張)
         X-Spatial        : y/n        (任意、既定 config)
       本体   : RIFF/WAVE モノラル 16bit 48kHz
-[Implemented] F-4  本体サイズが wavePayloadMaxBytes (既定 5 000 000 bytes) を超える場合
+[Completed] F-4  本体サイズが wavePayloadMaxBytes (既定 5 000 000 bytes) を超える場合
       → 413 Payload Too Large。
-[Implemented] F-5  正常完了    : 200 OK
+[Completed] F-5  正常完了    : 200 OK
       ボディ JSON : { "status":"ok", "id":"<X-Audio-ID>" }
-[Implemented] F-6  バリデーションエラー:
+[Completed] F-6  バリデーションエラー:
       • Content-Type 不正         → 415 Unsupported Media Type
       • WAV 解析失敗             → 422 Unprocessable Entity
       • リスナー busy (再生中)    → 409 Conflict  (下記 F-10 参照)
@@ -68,18 +68,18 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
       ボディ JSON : { "error":"<code>", "detail":"..." }
 
 3.2 WAVEリスナー制御 API
-[Implemented] F-7  GET /server/waveplay/start
+[Completed] F-7  GET /server/waveplay/start
       – 統合のため start/stop 操作は不要。
         wavePlaybackEnabled=true の場合 { "status":"integrated", "port":<httpPort>, "endpoint":"/waveplay/" }
         無効時は { "status":"disabled" }
 
-[Implemented] F-8  GET /server/waveplay/stop
+[Completed] F-8  GET /server/waveplay/stop
       – 常に { "status":"integrated" }
 
-[Implemented] F-9  GET /server/waveplay/status
+[Completed] F-9  GET /server/waveplay/status
       – 200 OK { "status":"running"|"stopped", "port":<httpPort>, "endpoint":"/waveplay/" }
 
-[Implemented] F-10 同時リクエスト処理方針
+[Completed] F-10 同時リクエスト処理方針
       • wavePlaybackConcurrency = "interrupt" / "reject" / "queue"
         - interrupt : 新リクエストが来た時点で再生中を停止し上書き再生
         - reject    : 再生中は 409 Conflict を返す
@@ -88,36 +88,36 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
         - queue時     API 応答: 200 OK { "status":"queued","id":"yyy" }
       • queue から他モードへ変更すると未再生キューは破棄される
 
-[Implemented] F-11 GET /server/waveplay/ping
+[Completed] F-11 GET /server/waveplay/ping
       – リスナー稼働時: { "status":"running", "latency_ms":<int> }
       – Stop状態      : { "status":"stopped" }
 
-[Implemented] F-12 GET /server/reload_config
+[Completed] F-12 GET /server/reload_config
       – ServerConfig.json を再読込。成功 200 OK { "status":"reloaded" }
 
 3.3 WAVE音声再生
-[Implemented] P-1  AudioSource: WavePlaybackSource (専用)
-[Implemented] P-2  AudioClip.Create にてメモリロード。再生開始まで ≤80 ms
-[Implemented] P-3  音量 = wavePlaybackVolume × X-Volume
-[Implemented] P-4  SpatialBlend:
+[Completed] P-1  AudioSource: WavePlaybackSource (専用)
+[Completed] P-2  AudioClip.Create にてメモリロード。再生開始まで ≤80 ms
+[Completed] P-3  音量 = wavePlaybackVolume × X-Volume
+[Completed] P-4  SpatialBlend:
       true  → 1.0、false → 0.0
       MinDistance=1, MaxDistance=15, Spread=0 (変更可)
-[Implemented] P-5  再生完了または中断時に Log レコード + Telemetry 1 イベント送信
-[Implemented] P-6  自動再起動: リスナーが例外終了した場合
+[Completed] P-5  再生完了または中断時に Log レコード + Telemetry 1 イベント送信
+[Completed] P-6  自動再起動: リスナーが例外終了した場合
       – autoRestart=true(default) なら 1 s 後にリトライ (最大5回)
       – false なら停止したまま。/start を再呼び出し。
 
 3.4 リップシンク連動
-[Implemented] L-1  LipSync Input Channels:
+[Completed] L-1  LipSync Input Channels:
       0: WavePlayback
       1: ExternalAudio
       2: Microphone
-[Implemented] L-2  WavePlaybackSource.AudioClip の RMS 値を 10 ms ごとに計測し
+[Completed] L-2  WavePlaybackSource.AudioClip の RMS 値を 10 ms ごとに計測し
       既存リップシンクドライバに入力。
-[Implemented] L-3  lipSyncOffsetMs (-100〜+100, 既定 0) で位相補正可能。
-[Implemented] L-4  FFT解析に基づく口形状制御を追加 (LipSyncFFTProcessor)
+[Completed] L-3  lipSyncOffsetMs (-100〜+100, 既定 0) で位相補正可能。
+[Completed] L-4  FFT解析に基づく口形状制御を追加 (LipSyncFFTProcessor)
 
-[Implemented] 3.5 ServerConfig 追加項目
+[Completed] 3.5 ServerConfig 追加項目
 {
   "wavePlaybackEnabled"        : false,
   "wavePlaybackVolume"         : 1.0,
