@@ -1,1 +1,2 @@
-curl "http://localhost:34560/?target=animation&cmd=play&id=Idle_denying&seamless=y"
+if "%VRMAH_ENDPOINT%"=="" set VRMAH_ENDPOINT=localhost:34560
+curl "http://%VRMAH_ENDPOINT%/?target=animation&cmd=play&id=Idle_denying&seamless=y"
