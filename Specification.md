@@ -22,6 +22,8 @@ This document summarizes implementation notes and conventions for the Visual Ava
 - Unexpected exceptions are logged and return 500 status.
 
 ## Testing
-- Batch files under `TEST/batch/` provide basic integration tests.
-- Use `TEST/vrm_agent_host_test.json` as a sample configuration.
+[Implemented] - Batch files under `TEST/batch/` provide basic integration tests.
+[Implemented] - Use `TEST/vrm_agent_host_test.json` as a sample configuration.
+[Implemented] - Set the `VRMAH_ENDPOINT` environment variable to override the HTTP host and port used by the batch scripts (default `localhost:34560`).
+[Implemented] - Wave playback test commands (`waveplay_ping.bat`, `waveplay_play_sample.bat`) are available under `TEST/batch/cmd`.
 
