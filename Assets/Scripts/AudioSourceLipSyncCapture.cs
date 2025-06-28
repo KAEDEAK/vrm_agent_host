@@ -10,7 +10,7 @@ public class AudioSourceLipSyncCapture : MonoBehaviour {
     [Header("LipSync Settings")]
     [SerializeField] private bool enableLipSync = true;
     [SerializeField] private float rmsSmoothing = 0.1f;
-    [SerializeField] private float volumeMultiplier = 1.0f;
+    [SerializeField] private float volumeMultiplier = 15.0f; // WavePlayback用に最適化されたデフォルト値
     
     [Header("FFT Settings")]
     [SerializeField] private bool enableFFTAnalysis = true;
@@ -181,7 +181,7 @@ public class AudioSourceLipSyncCapture : MonoBehaviour {
     /// </summary>
     /// <param name="multiplier">倍率</param>
     public void SetVolumeMultiplier(float multiplier) {
-        volumeMultiplier = Mathf.Clamp(multiplier, 0f, 10f);
+        volumeMultiplier = Mathf.Clamp(multiplier, 0f, 100f); // 範囲を拡張
         Debug.Log($"[AudioSourceLipSyncCapture] Volume multiplier set to {volumeMultiplier}");
     }
 

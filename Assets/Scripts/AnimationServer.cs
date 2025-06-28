@@ -147,6 +147,9 @@ public class AnimationServer : MonoBehaviour {
         this.lipSync = UnityEngine.Object.FindAnyObjectByType<AudioLipSync>();
         var imageLoader = UnityEngine.Object.FindAnyObjectByType<LocalImageLoader>();
 
+        // WavePlaybackHandlerを初期化
+        InitializeWavePlaybackHandler();
+
         // コマンドごとにハンドラを登録
         commandHandlers = new Dictionary<string, IHttpCommandHandler> {
             { "animation",  new AnimationCommandHandler(animationHandler, vrmLoader) },
@@ -187,6 +190,21 @@ public class AnimationServer : MonoBehaviour {
             StopServer();
         }
         Instance = null;
+    }
+
+    #endregion
+
+    #region WavePlaybackHandler初期化
+
+    private void InitializeWavePlaybackHandler() {
+        // WavePlaybackHandlerのインスタンスが存在しない場合は作成
+        if (WavePlaybackHandler.Instance == null) {
+            GameObject waveHandlerGO = new GameObject("WavePlaybackHandler");
+            waveHandlerGO.AddComponent<WavePlaybackHandler>();
+            Debug.Log("[AnimationServer] WavePlaybackHandler initialized");
+        } else {
+            Debug.Log("[AnimationServer] WavePlaybackHandler already exists");
+        }
     }
 
     #endregion
@@ -613,7 +631,14 @@ public class AnimationServer : MonoBehaviour {
         if (urlPath == "/waveplay" || urlPath.StartsWith("/waveplay/")) {
             var config = ServerConfig.Instance;
             if (config != null && config.wavePlaybackEnabled) {
-                HandleWavePlaybackRequest(context);
+                // Delegate to WavePlaybackHandler for spatial audio and volume control
+                var waveHandler = WavePlaybackHandler.Instance;
+                if (waveHandler != null) {
+                    waveHandler.HandleWaveData(context);
+                } else {
+                    Debug.LogError("[AnimationServer] WavePlaybackHandler not found, falling back to legacy handler");
+                    HandleWavePlaybackRequest(context);
+                }
             } else {
                 SendJsonResponse(context, 503, "Wave playback is disabled");
             }

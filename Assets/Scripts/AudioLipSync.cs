@@ -76,7 +76,7 @@ public class AudioLipSync : MonoBehaviour {
 
     private string lastPhoneme = "Aa";
     private float phonemeHoldTime = 0f;
-    private const float phonemeSwitchInterval = 0.12f;
+    private const float phonemeSwitchInterval = 0.02f; // 極限応答速度（「ぶぐばぐ」対応）
 
 
     private Dictionary<string, Vector2> GetDynamicBandRanges(Dictionary<string, float> phonemeRatios, float totalMin = 100f, float maxHz = 3000f) {
@@ -154,6 +154,21 @@ public class AudioLipSync : MonoBehaviour {
         { "Ee", 0f },
         { "Oh", 0f }
     };
+
+    // 適応的スムージング用の変数
+    private Dictionary<string, float> previousTargetValues = new Dictionary<string, float>()
+    {
+        { "Aa", 0f },
+        { "Ih", 0f },
+        { "Ou", 0f },
+        { "Ee", 0f },
+        { "Oh", 0f }
+    };
+    
+    private const float baseLerpSpeed = 0.7f;           // 基本スムージング速度（極限応答速度）
+    private const float fastLerpSpeed = 0.95f;         // 高速応答時のスムージング速度（ほぼ即座）
+    private const float changeThreshold = 0.05f;       // 変化量の閾値（極めて敏感に）
+    private const float adaptiveSmoothing = 2.0f;      // 適応的調整の強度（最大強度）
 
 
     private void Start() {
@@ -239,7 +254,7 @@ public class AudioLipSync : MonoBehaviour {
 
         float total = 0f;
         foreach (var val in energyMap.Values) total += val;
-        if (total < 0.001f) return new Dictionary<string, float>(); // 無音なら全部ゼロで返す
+        if (total < 0.002f) return new Dictionary<string, float>(); // 無音閾値を上げて口を閉じやすく
 
         // 比率として正規化
         Dictionary<string, float> phonemeRatios = new Dictionary<string, float>();
@@ -288,16 +303,29 @@ public class AudioLipSync : MonoBehaviour {
 
     // BLEND_EXPR モード: 現在の実装（表情との加算）
     private void ApplyBlendExprMode(Dictionary<string, float> phonemeRatios, float scaled) {
-        float lerpSpeed = 0.2f;
         var keys = new List<string>(currentWeights.Keys);
 
         foreach (var key in keys) {
             float target = phonemeRatios.TryGetValue(key, out var ratio) ? ratio * scaled : 0f;
-            float lerped = Mathf.Lerp(currentWeights[key], target, lerpSpeed);
+            
+            // 適応的スムージング: 変化量に応じてlerpSpeedを動的調整
+            float changeAmount = Mathf.Abs(target - previousTargetValues[key]);
+            float adaptiveLerpSpeed = baseLerpSpeed;
+            
+            if (changeAmount > changeThreshold) {
+                // 大きな変化時は高速応答
+                adaptiveLerpSpeed = Mathf.Lerp(baseLerpSpeed, fastLerpSpeed, 
+                    Mathf.Clamp01((changeAmount - changeThreshold) * adaptiveSmoothing));
+            }
+            
+            float lerped = Mathf.Lerp(currentWeights[key], target, adaptiveLerpSpeed);
             
             // ダイナミックレンジ調整: 強い値は圧縮、弱い値はそのまま
             float compressed = ApplyDynamicRange(lerped);
             currentWeights[key] = compressed;
+
+            // 前回のターゲット値を更新
+            previousTargetValues[key] = target;
 
             ExpressionKey exKey = GetExpressionKey(key);
             if (exKey.Preset != ExpressionPreset.custom) {
@@ -346,16 +374,29 @@ public class AudioLipSync : MonoBehaviour {
 
     // FULL モード: 改良前の単純実装（表情との競合を考慮しない直接設定）
     private void ApplyFullMode(Dictionary<string, float> phonemeRatios, float scaled) {
-        float lerpSpeed = 0.2f;
         var keys = new List<string>(currentWeights.Keys);
 
         foreach (var key in keys) {
             float target = phonemeRatios.TryGetValue(key, out var ratio) ? ratio * scaled : 0f;
-            float lerped = Mathf.Lerp(currentWeights[key], target, lerpSpeed);
+            
+            // 適応的スムージング: FULLモードでも一貫性を保つ
+            float changeAmount = Mathf.Abs(target - previousTargetValues[key]);
+            float adaptiveLerpSpeed = baseLerpSpeed;
+            
+            if (changeAmount > changeThreshold) {
+                // 大きな変化時は高速応答
+                adaptiveLerpSpeed = Mathf.Lerp(baseLerpSpeed, fastLerpSpeed, 
+                    Mathf.Clamp01((changeAmount - changeThreshold) * adaptiveSmoothing));
+            }
+            
+            float lerped = Mathf.Lerp(currentWeights[key], target, adaptiveLerpSpeed);
             
             // ダイナミックレンジ調整: 強い値は圧縮、弱い値はそのまま
             float compressed = ApplyDynamicRange(lerped);
             currentWeights[key] = compressed;
+
+            // 前回のターゲット値を更新
+            previousTargetValues[key] = target;
 
             switch (key) {
                 case "Aa":
@@ -449,21 +490,21 @@ public class AudioLipSync : MonoBehaviour {
         }
     }
 
-    // ダイナミックレンジ調整: 強い値は圧縮、弱い値はそのまま
+    // ダイナミックレンジ調整: 強い値は圧縮、弱い値はそのまま（メリハリ向上版）
     private float ApplyDynamicRange(float input) {
         if (input <= 0f) return 0f;
         
-        // 閾値: この値以下はそのまま、以上は対数圧縮
-        float threshold = 0.4f;
+        // 閾値を上げてメリハリを向上（0.4f → 0.5f）
+        float threshold = 0.5f;
         
         if (input <= threshold) {
-            // 弱い値はそのまま
+            // 弱い値はそのまま（より多くの値がそのまま通る）
             return input;
         } else {
-            // 強い値は対数圧縮で自然に減衰
+            // 強い値は対数圧縮で自然に減衰（圧縮を少し緩和）
             // log(1 + x) を使用して滑らかな圧縮を実現
             float excess = input - threshold;
-            float compressed = threshold + Mathf.Log(1f + excess * 2f) * 0.3f;
+            float compressed = threshold + Mathf.Log(1f + excess * 1.8f) * 0.35f; // 圧縮を緩和
             return Mathf.Clamp01(compressed);
         }
     }
@@ -522,15 +563,12 @@ public class AudioLipSync : MonoBehaviour {
         fftProvider = new FftProvider(1, fftSize);
         fftMagnitudes = new float[(int)fftSize];
         
-        // WavePlaybackモードではデフォルトでより高いスケール値を使用
-        if (scaleMultiplier <= 3.0f) {
-            scaleMultiplier = 15.0f; // デフォルトを15に設定（30の半分で調整しやすく）
-            Debug.Log($"[AudioLipSync] WavePlayback mode: scale multiplier adjusted to {scaleMultiplier}");
-        }
+        // 統一設計: HTTPスケールをそのまま使用（デフォルト値を維持）
+        // AudioSourceLipSyncCapture側で適切なレベル調整を行う
         
         isLipSyncActive = true;
         currentSource = LipSyncSource.WavePlayback;
-        Debug.Log("[AudioLipSync] WavePlayback lip sync started with FFT provider.");
+        Debug.Log($"[AudioLipSync] WavePlayback lip sync started. Scale multiplier: {scaleMultiplier}");
     }
 
     private void WasapiCapture_DataAvailable(object sender, DataAvailableEventArgs e) {

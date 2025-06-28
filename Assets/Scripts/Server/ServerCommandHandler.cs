@@ -11,7 +11,7 @@ public class ServerCommandHandler : HttpCommandHandlerBase {
     // 許可コマンド一覧（追加・拡張があればここに追記）
     private static readonly string[] AllowedCommands = {
         "transparent", "allowDragObjects", "stayOnTop", "getstatus", "terminate",
-        "waveplay_start", "waveplay_stop", "waveplay_status", "waveplay_ping", "reload_config"
+        "waveplay_start", "waveplay_stop", "waveplay_status", "waveplay_ping", "waveplay_volume", "reload_config"
     };
 
     // ★Win32 API 用：GetWindowRect / GetSystemMetrics
@@ -210,6 +210,51 @@ public class ServerCommandHandler : HttpCommandHandlerBase {
                             {"status","stopped"},
                             {"endpoint", "/waveplay/"}
                         };
+                    }
+                    SendResponse(context, responseData);
+                    break;
+                }
+
+            case "waveplay_volume": {
+                    string valueParam = GetQueryParam(query, "value", null);
+                    if (string.IsNullOrEmpty(valueParam)) {
+                        // Get current volume
+                        var waveHandler = WavePlaybackHandler.Instance;
+                        if (waveHandler != null) {
+                            float currentVolume = waveHandler.GetWavePlaybackVolume();
+                            responseData.status = 200;
+                            responseData.message = new Dictionary<string, object> {
+                                {"volume", currentVolume}
+                            };
+                        } else {
+                            responseData.status = 500;
+                            responseData.message = "WavePlaybackHandler not found";
+                        }
+                        SendResponse(context, responseData);
+                        break;
+                    }
+
+                    // Set volume (0.0-1.0 range, but allow values > 1.0 for amplification)
+                    if (float.TryParse(valueParam, out float volume)) {
+                        // Clamp to reasonable range (0.0 to 3.0 for up to 3x amplification)
+                        volume = Mathf.Clamp(volume, 0.0f, 3.0f);
+                        
+                        var waveHandler = WavePlaybackHandler.Instance;
+                        if (waveHandler != null) {
+                            waveHandler.SetWavePlaybackVolume(volume);
+                            responseData.status = 200;
+                            responseData.message = new Dictionary<string, object> {
+                                {"status", "success"},
+                                {"volume", volume},
+                                {"message", $"Wave playback volume set to {volume:F2}"}
+                            };
+                        } else {
+                            responseData.status = 500;
+                            responseData.message = "WavePlaybackHandler not found";
+                        }
+                    } else {
+                        responseData.status = 400;
+                        responseData.message = "Invalid volume value. Use a floating point number (0.0-3.0, where 1.0 = normal volume, 2.0 = double volume)";
                     }
                     SendResponse(context, responseData);
                     break;
