@@ -33,7 +33,7 @@
 - **wavePlaybackEnabled** (既定 false)
   - `/waveplay/` エンドポイントを有効にするかどうか。
 - **wavePlaybackVolume** (既定 1.0)
-  - 再生時の基本音量倍率。`X-Volume` ヘッダーと乗算されます。
+  - 再生時の基本音量倍率。`X-Volume` ヘッダーと乗算されます。 音量は0.0〜3.0の範囲で設定でき、1.0が通常音量です。
 - **waveSpatializationEnabled** (既定 true)
   - 立体音響再生を有効にするか。
 - **wavePayloadMaxBytes** (既定 5,000,000)

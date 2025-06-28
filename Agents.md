@@ -52,7 +52,7 @@ WAVE データを HTTP 経由で VRM Agent Host へ送信し、
       ヘッダー:
         Content-Type     : audio/wav  (必須)
         X-Audio-ID       : 文字列     (任意)
-        X-Volume         : 0.0–2.0    (任意、既定 1.0)
+        X-Volume         : 0.0–3.0    (任意、既定 1.0)
         X-Speaker        : 任意文字列 (将来拡張)
         X-Spatial        : y/n        (任意、既定 config)
       本体   : RIFF/WAVE モノラル 16bit 48kHz
