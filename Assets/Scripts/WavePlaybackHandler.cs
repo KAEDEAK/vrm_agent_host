@@ -19,6 +19,12 @@ public class WavePlaybackHandler : MonoBehaviour {
     private Queue<float> audioBuffer = new Queue<float>();
     private bool isReceivingAudio = false;
     private Coroutine playbackCoroutine;
+    
+    // Queue management for concurrency control
+    private Queue<WavePlaybackItem> waveQueue = new Queue<WavePlaybackItem>();
+    private readonly object queueLock = new object();
+    private const int MAX_QUEUE_SIZE = 10;
+    private bool isProcessingQueue = false;
 
     // Audio format parameters
     private int sampleRate = 44100;
@@ -85,31 +91,55 @@ public class WavePlaybackHandler : MonoBehaviour {
     }
 
     /// <summary>
-    /// Handle incoming wave data from HTTP endpoint
+    /// Handle incoming wave data from HTTP endpoint with concurrency control
     /// </summary>
     public void HandleWaveData(HttpListenerContext context) {
         if (!enableWavePlayback) {
-            SendResponse(context, 503, "Wave playback is disabled");
+            SendJsonResponse(context, 503, "Wave playback is disabled");
             return;
         }
 
         try {
             // Handle GET requests (ping)
             if (context.Request.HttpMethod == "GET") {
-                SendResponse(context, 200, "Wave playback handler is active");
+                SendJsonResponse(context, 200, "ok");
                 return;
             }
 
             // Handle POST requests (audio data)
             if (context.Request.HttpMethod != "POST") {
-                SendResponse(context, 405, "Method not allowed");
+                SendJsonResponse(context, 405, "method_not_allowed");
+                return;
+            }
+
+            // Validate content type
+            if (!context.Request.ContentType?.StartsWith("audio/wav") ?? true) {
+                SendJsonResponse(context, 415, "unsupported_media_type");
                 return;
             }
 
             long contentLength = context.Request.ContentLength64;
-            if (contentLength <= 0 || contentLength > maxBufferSize) {
-                SendResponse(context, 413, "Content length invalid");
+            var config = ServerConfig.Instance;
+            int maxBytes = config?.wavePayloadMaxBytes ?? 5000000;
+            if (contentLength <= 0 || contentLength > maxBytes) {
+                SendJsonResponse(context, 413, "payload_too_large");
                 return;
+            }
+
+            // Extract headers
+            string audioId = context.Request.Headers["X-Audio-ID"];
+            if (string.IsNullOrEmpty(audioId)) audioId = Guid.NewGuid().ToString();
+
+            float volume = 1.0f;
+            string volHeader = context.Request.Headers["X-Volume"];
+            if (!string.IsNullOrEmpty(volHeader) && float.TryParse(volHeader, out float vol)) {
+                volume = Mathf.Clamp(vol, 0f, 2f);
+            }
+
+            bool? spatialOverride = null;
+            string spatialHeader = context.Request.Headers["X-Spatial"];
+            if (!string.IsNullOrEmpty(spatialHeader)) {
+                spatialOverride = spatialHeader.ToLower() == "y" || spatialHeader.ToLower() == "yes";
             }
 
             // Read audio data
@@ -124,20 +154,24 @@ public class WavePlaybackHandler : MonoBehaviour {
             }
 
             if (totalRead > 0) {
-                // Parse WAV data and create AudioClip directly
-                if (TryParseWavData(audioData, out float[] samples, out int parsedSampleRate)) {
-                    PlayAudioClipDirectly(samples, parsedSampleRate);
-                    SendResponse(context, 200, $"Playing {samples.Length} samples at {parsedSampleRate}Hz");
-                } else {
-                    SendResponse(context, 422, "Invalid WAV data");
-                }
+                // Create wave item and handle based on concurrency mode
+                var waveItem = new WavePlaybackItem {
+                    audioData = audioData,
+                    context = context,
+                    audioId = audioId,
+                    volume = volume,
+                    spatialOverride = spatialOverride,
+                    enqueuedTime = DateTime.Now
+                };
+
+                HandleWaveItemWithConcurrency(waveItem);
             } else {
-                SendResponse(context, 400, "No audio data received");
+                SendJsonResponse(context, 400, "no_audio_data");
             }
         }
         catch (Exception ex) {
             Debug.LogError($"[WavePlaybackHandler] Error processing wave data: {ex.Message}");
-            SendResponse(context, 500, $"Error processing audio data: {ex.Message}");
+            SendJsonResponse(context, 500, "internal_error");
         }
     }
 
@@ -555,6 +589,209 @@ public class WavePlaybackHandler : MonoBehaviour {
         }
     }
 
+    /// <summary>
+    /// Handle wave item based on concurrency mode
+    /// </summary>
+    private void HandleWaveItemWithConcurrency(WavePlaybackItem waveItem) {
+        var config = ServerConfig.Instance;
+        string concurrency = config?.wavePlaybackConcurrency ?? "interrupt";
+        
+        Debug.Log($"[WavePlaybackHandler] Processing audio {waveItem.audioId} with concurrency mode: {concurrency}");
+        
+        lock (queueLock) {
+            switch (concurrency.ToLower()) {
+                case "queue":
+                    HandleQueueMode(waveItem);
+                    break;
+                case "reject":
+                    HandleRejectMode(waveItem);
+                    break;
+                case "interrupt":
+                default:
+                    HandleInterruptMode(waveItem);
+                    break;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Handle interrupt mode - always stop current and play new
+    /// </summary>
+    private void HandleInterruptMode(WavePlaybackItem waveItem) {
+        string prevId = null;
+        if (spatialAudioSource != null && spatialAudioSource.isPlaying) {
+            prevId = "current_audio"; // We don't track IDs in interrupt mode currently
+            StopAudioPlayback();
+        }
+        
+        PlayWaveItem(waveItem);
+        
+        if (prevId != null) {
+            SendJsonResponse(waveItem.context, 200, "interrupted", waveItem.audioId, prevId);
+        } else {
+            SendJsonResponse(waveItem.context, 200, "ok", waveItem.audioId);
+        }
+    }
+    
+    /// <summary>
+    /// Handle queue mode - queue if playing, play immediately if not
+    /// </summary>
+    private void HandleQueueMode(WavePlaybackItem waveItem) {
+        if (spatialAudioSource != null && spatialAudioSource.isPlaying) {
+            // Check queue size limit
+            if (waveQueue.Count >= MAX_QUEUE_SIZE) {
+                // Remove oldest item
+                var oldestItem = waveQueue.Dequeue();
+                SendJsonResponse(oldestItem.context, 410, "queue_full_dropped", oldestItem.audioId);
+                Debug.LogWarning($"[WavePlaybackHandler] Queue full, dropped oldest item {oldestItem.audioId}");
+            }
+            
+            waveQueue.Enqueue(waveItem);
+            SendJsonResponse(waveItem.context, 200, "queued", waveItem.audioId);
+            Debug.Log($"[WavePlaybackHandler] Queued item {waveItem.audioId}, queue size: {waveQueue.Count}");
+        } else {
+            // Not playing, play immediately
+            PlayWaveItem(waveItem);
+            SendJsonResponse(waveItem.context, 200, "ok", waveItem.audioId);
+        }
+    }
+    
+    /// <summary>
+    /// Handle reject mode - reject if playing, play if not
+    /// </summary>
+    private void HandleRejectMode(WavePlaybackItem waveItem) {
+        if (spatialAudioSource != null && spatialAudioSource.isPlaying) {
+            SendJsonResponse(waveItem.context, 409, "busy");
+        } else {
+            PlayWaveItem(waveItem);
+            SendJsonResponse(waveItem.context, 200, "ok", waveItem.audioId);
+        }
+    }
+    
+    /// <summary>
+    /// Play a wave item with spatial audio support
+    /// </summary>
+    private void PlayWaveItem(WavePlaybackItem waveItem) {
+        if (isProcessingQueue) {
+            Debug.LogWarning($"[WavePlaybackHandler] Already processing queue, skipping {waveItem.audioId}");
+            return;
+        }
+        
+        isProcessingQueue = true;
+        
+        try {
+            // Parse WAV data
+            if (!TryParseWavData(waveItem.audioData, out float[] samples, out int parsedSampleRate)) {
+                Debug.LogError($"[WavePlaybackHandler] Failed to parse WAV data for {waveItem.audioId}");
+                SendJsonResponse(waveItem.context, 422, "invalid_wav", waveItem.audioId);
+                return;
+            }
+            
+            // Update avatar head position
+            UpdateAvatarHeadPosition();
+            
+            // Create AudioClip from samples
+            AudioClip clip = AudioClip.Create($"WavePlayback_{waveItem.audioId}", samples.Length, 1, parsedSampleRate, false);
+            clip.SetData(samples, 0);
+            
+            // Configure spatial audio
+            var config = ServerConfig.Instance;
+            bool spatial = waveItem.spatialOverride ?? (config?.waveSpatializationEnabled ?? true);
+            float baseVolume = config?.wavePlaybackVolume ?? 1.0f;
+            
+            if (spatialAudioSource != null) {
+                spatialAudioSource.clip = clip;
+                spatialAudioSource.volume = baseVolume * waveItem.volume;
+                spatialAudioSource.spatialBlend = spatial ? 1.0f : 0.0f;
+                
+                // Position at avatar head if available
+                if (avatarHeadTransform != null) {
+                    spatialAudioSource.transform.position = avatarHeadTransform.position;
+                    Debug.Log($"[WavePlaybackHandler] Positioned audio at avatar head: {avatarHeadTransform.position}");
+                } else {
+                    spatialAudioSource.transform.position = Vector3.zero;
+                    Debug.Log("[WavePlaybackHandler] Avatar head not found, positioning audio at origin");
+                }
+                
+                spatialAudioSource.Play();
+                AttachLipSyncCapture(spatialAudioSource);
+                
+                isReceivingAudio = true;
+                Debug.Log($"[WavePlaybackHandler] Playing audio {waveItem.audioId}: {samples.Length} samples at {parsedSampleRate}Hz, duration: {clip.length:F2}s");
+                
+                // Start coroutine to track playback completion and process queue
+                StartCoroutine(TrackPlaybackCompletionWithQueue(clip.length, waveItem.audioId));
+            }
+        } catch (Exception ex) {
+            Debug.LogError($"[WavePlaybackHandler] Error playing wave item {waveItem.audioId}: {ex.Message}");
+            SendJsonResponse(waveItem.context, 500, "playback_error", waveItem.audioId);
+        } finally {
+            isProcessingQueue = false;
+        }
+    }
+    
+    /// <summary>
+    /// Track playback completion and process next queue item
+    /// </summary>
+    private IEnumerator TrackPlaybackCompletionWithQueue(float duration, string audioId) {
+        yield return new WaitForSeconds(duration + 0.1f); // Add small buffer
+        
+        if (spatialAudioSource != null && !spatialAudioSource.isPlaying) {
+            isReceivingAudio = false;
+            Debug.Log($"[WavePlaybackHandler] Audio playback completed for {audioId}");
+            
+            // Process next item in queue
+            ProcessNextQueueItem();
+        }
+    }
+    
+    /// <summary>
+    /// Process next item in queue if available
+    /// </summary>
+    private void ProcessNextQueueItem() {
+        lock (queueLock) {
+            if (waveQueue.Count > 0) {
+                var nextItem = waveQueue.Dequeue();
+                Debug.Log($"[WavePlaybackHandler] Processing next queued item {nextItem.audioId}, remaining queue: {waveQueue.Count}");
+                
+                // Play next item
+                PlayWaveItem(nextItem);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Send JSON response to HTTP context
+    /// </summary>
+    private void SendJsonResponse(HttpListenerContext context, int statusCode, string message, string id = null, string prevId = null) {
+        if (context == null) {
+            Debug.LogWarning("[WavePlaybackHandler] Cannot send response: HttpListenerContext is null");
+            return;
+        }
+        
+        try {
+            string body;
+            if (prevId != null)
+                body = $"{{\"status\":\"{message}\",\"prev_id\":\"{prevId}\",\"id\":\"{id}\"}}";
+            else if (id != null)
+                body = $"{{\"status\":\"{message}\",\"id\":\"{id}\"}}";
+            else
+                body = $"{{\"status\":\"{message}\"}}";
+            
+            var buffer = System.Text.Encoding.UTF8.GetBytes(body);
+            
+            context.Response.StatusCode = statusCode;
+            context.Response.ContentType = "application/json";
+            context.Response.ContentLength64 = buffer.Length;
+            
+            using (var stream = context.Response.OutputStream) {
+                stream.Write(buffer, 0, buffer.Length);
+            }
+        } catch (Exception ex) {
+            Debug.LogWarning($"[WavePlaybackHandler] SendJsonResponse transport failure: {ex.Message}");
+        }
+    }
+
     private void SendResponse(HttpListenerContext context, int statusCode, string message) {
         try {
             context.Response.StatusCode = statusCode;
@@ -619,4 +856,14 @@ public class WavePlaybackStatus {
     public int sampleRate;
     public int channels;
     public string endpoint;
+}
+
+[System.Serializable]
+public class WavePlaybackItem {
+    public byte[] audioData;
+    public HttpListenerContext context;
+    public string audioId;
+    public float volume;
+    public bool? spatialOverride;
+    public DateTime enqueuedTime;
 }

@@ -631,7 +631,7 @@ public class AnimationServer : MonoBehaviour {
         if (urlPath == "/waveplay" || urlPath.StartsWith("/waveplay/")) {
             var config = ServerConfig.Instance;
             if (config != null && config.wavePlaybackEnabled) {
-                // Delegate to WavePlaybackHandler for spatial audio and volume control
+                // Use WavePlaybackHandler for all concurrency modes (now supports all modes with spatial audio)
                 var waveHandler = WavePlaybackHandler.Instance;
                 if (waveHandler != null) {
                     waveHandler.HandleWaveData(context);
