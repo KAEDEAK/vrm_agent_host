@@ -337,9 +337,20 @@ public class AnimationHandler : MonoBehaviour {
         yield return null;
 
         if (animator != null) {
+            Dictionary<Transform, Quaternion> savedSpring = null;
+            if (vrmLoader != null && vrmLoader.VrmInstance != null)
+            {
+                savedSpring = CaptureSpringBoneRotations(vrmLoader.VrmInstance.gameObject);
+            }
+
             animator.Rebind();
             animator.Update(0);
             animator.runtimeAnimatorController = externalController;
+
+            if (savedSpring != null)
+            {
+                StartCoroutine(RestoreSpringBoneRotationsNextFrame(savedSpring));
+            }
 
             if (string.IsNullOrEmpty(nextState)) {
                 Debug.Log("🔄 No next state provided. Returning to default animation: Idle_generic_01");
@@ -471,6 +482,39 @@ public class AnimationHandler : MonoBehaviour {
         foreach (var skinnedMesh in skinnedMeshes) {
             Debug.Log(string.Format(i18nMsg.LOG_SKINNEDMESH_DISABLED, skinnedMesh.name));
             skinnedMesh.enabled = false;
+        }
+    }
+
+    private Dictionary<Transform, Quaternion> CaptureSpringBoneRotations(GameObject root)
+    {
+        var dict = new Dictionary<Transform, Quaternion>();
+        if (root == null) return dict;
+
+        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+        {
+            foreach (var comp in t.GetComponents<Component>())
+            {
+                if (comp == null) continue;
+                var typeName = comp.GetType().Name;
+                if (typeName.Contains("SpringBone"))
+                {
+                    dict[t] = t.localRotation;
+                    break;
+                }
+            }
+        }
+        return dict;
+    }
+
+    private IEnumerator RestoreSpringBoneRotationsNextFrame(Dictionary<Transform, Quaternion> saved)
+    {
+        yield return null;
+        foreach (var kv in saved)
+        {
+            if (kv.Key != null)
+            {
+                kv.Key.localRotation = kv.Value;
+            }
         }
     }
 }
