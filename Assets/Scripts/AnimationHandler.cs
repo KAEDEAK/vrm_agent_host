@@ -452,6 +452,11 @@ public class AnimationHandler : MonoBehaviour {
     {
         Debug.Log($"🎯 Starting manual interpolation transition to: {targetState}");
 
+        // Animator speed must be restored even if the coroutine exits early
+        float originalAnimatorSpeed = animator != null ? animator.speed : 1f;
+        try
+        {
+
         // 座標ログ: VRMA終了時
         LogModelCoordinates("VRMA終了時");
 
@@ -517,7 +522,10 @@ public class AnimationHandler : MonoBehaviour {
 
         // 5. 手動補間実行
         float interpolationDuration = 1.0f; // 補間時間（1秒でより滑らかに）
+        // Pause animator so it doesn't blend against manual interpolation
+        if (animator != null) animator.speed = 0f;
         yield return StartCoroutine(InterpolateBetweenPoses(vrmaEndPose, targetPose, interpolationDuration));
+        if (animator != null) animator.speed = originalAnimatorSpeed;
 
         // 座標ログ: 補間完了後
         LogModelCoordinates("補間完了後");
@@ -543,6 +551,11 @@ public class AnimationHandler : MonoBehaviour {
         // 8. SpringBone段階的復帰
         yield return StartCoroutine(GradualEnableSpringBones(disabledJoints, 0.3f));
         Debug.Log("✅ Manual interpolation transition completed with gradual SpringBone restoration");
+        }
+        finally
+        {
+            if (animator != null) animator.speed = originalAnimatorSpeed;
+        }
     }
 
     /// <summary>
