@@ -8,8 +8,6 @@ using UniVRM10;
 public class VRMLoader : MonoBehaviour {
     public GameObject LoadedModel { get; private set; }
     public Vrm10Instance VrmInstance { get; private set; }
-    // Currently loaded VRM file path (full path)
-    public string CurrentVrmPath { get; private set; }
 
     public delegate void VRMLoadCompleteHandler(GameObject model);
     public event VRMLoadCompleteHandler OnVRMLoadComplete;
@@ -23,7 +21,6 @@ public class VRMLoader : MonoBehaviour {
         }
 
         isLoading = true;
-        CurrentVrmPath = null;
         try {
             if (LoadedModel != null) {
                 Debug.Log(i18nMsg.VRML_EXISTING_MODEL_DESTROYED);
@@ -59,7 +56,6 @@ public class VRMLoader : MonoBehaviour {
 
             LoadedModel = VrmInstance.gameObject;
             LoadedModel.name = "LoadedVRMModel";
-            CurrentVrmPath = fullPath;
 
             EnableUpdateWhenOffscreen(LoadedModel);
             AdjustCamera(LoadedModel);
