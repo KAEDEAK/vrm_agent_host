@@ -1,12 +1,12 @@
 # アニメーション制御の問題一覧
 
-## 1. アニメーター状態エラー
+## [Implemented] 1. アニメーター状態エラー
 - **問題**: `Animator.GotoState: State could not be found`
 - **詳細**: 存在しないアニメーション状態への遷移を試行
 - **発生箇所**: `AnimationHandler/<WaitForParameterUpdateAndPlay>d__35:MoveNext()`
 - **対策**: アニメーターコントローラーの状態名確認と修正が必要
 
-## 2. 無効なレイヤーインデックス
+## [Implemented] 2. 無効なレイヤーインデックス
 - **問題**: `Invalid Layer Index '-1'`
 - **詳細**: 無効なアニメーターレイヤーインデックス`-1`を使用
 - **発生箇所**: `AnimationHandler/<WaitForParameterUpdateAndPlay>d__35:MoveNext()`
@@ -17,7 +17,7 @@
 - **詳細**: エラー後にアニメーション再生は成功している
 - **分析**: エラーは発生するが最終的には正常動作している
 
-## 4. VRMAアニメーション遷移問題（解決済み）
+## [Completed] 4. VRMAアニメーション遷移問題（解決済み）
 - **状況**: SpringBone制御とHipsボーン座標固定システムが実装済み
 - **確認事項**: 
   - SpringBone検出: ✅ 121 joints正常検出
