@@ -257,6 +257,78 @@ public class AnimationHandler : MonoBehaviour {
         public List<string> availableStates;
     }
 
+    /// <summary>
+    /// ボーンの位置・回転データを保存するための構造体
+    /// </summary>
+    [Serializable]
+    public class TransformData
+    {
+        public Vector3 localPosition;
+        public Quaternion localRotation;
+        public Vector3 localScale;
+
+        public TransformData(Transform transform)
+        {
+            if (transform != null)
+            {
+                localPosition = transform.localPosition;
+                localRotation = transform.localRotation;
+                localScale = transform.localScale;
+            }
+            else
+            {
+                localPosition = Vector3.zero;
+                localRotation = Quaternion.identity;
+                localScale = Vector3.one;
+            }
+        }
+
+        public void ApplyTo(Transform transform)
+        {
+            if (transform != null)
+            {
+                transform.localPosition = localPosition;
+                transform.localRotation = localRotation;
+                transform.localScale = localScale;
+            }
+        }
+    }
+
+    /// <summary>
+    /// SpringBoneの状態を保存するクラス（簡略版）
+    /// </summary>
+    [Serializable]
+    public class SpringBoneState
+    {
+        public VRM10SpringBoneJoint joint;
+        public bool wasEnabled;
+
+        public SpringBoneState(VRM10SpringBoneJoint springBoneJoint)
+        {
+            joint = springBoneJoint;
+            if (joint != null)
+            {
+                wasEnabled = joint.enabled;
+            }
+        }
+
+        public void Disable()
+        {
+            if (joint != null)
+            {
+                joint.enabled = false;
+            }
+        }
+
+        public void RestoreOriginal()
+        {
+            if (joint != null)
+            {
+                joint.enabled = wasEnabled;
+            }
+        }
+    }
+
     // =========================
     // 以下、VRMA再生用の実装
     // =========================
@@ -321,7 +393,7 @@ public class AnimationHandler : MonoBehaviour {
     }
 
     /// <summary>
-    /// SpringBone を一時的に無効化してアニメータ切り替え時の物理リセットを防ぐ
+    /// SpringBone を一時的に無効化してアニメータ切り替え時の物理リセットを防ぐ（シームレス遷移版）
     /// </summary>
     private IEnumerator ImprovedWaitForVrmaToFinish(Vrm10AnimationInstance vrmaInstance, string nextState = "")
     {
@@ -336,41 +408,28 @@ public class AnimationHandler : MonoBehaviour {
 
         // VRMA アニメーションの終了を待つ
         yield return new WaitForSeconds(anim.clip.length);
-        Debug.Log($"🎬 VRMA animation finished. Preparing to switch to {nextState}");
-
-        if (vrmLoader.VrmInstance != null && vrmLoader.VrmInstance.Runtime != null)
-        {
-            vrmLoader.VrmInstance.Runtime.VrmAnimation = null;
-        }
-
-        yield return null;
+        Debug.Log($"🎬 VRMA animation finished. Preparing seamless transition to {nextState}");
 
         if (animator != null)
         {
-            // SpringBone を一時的に無効化
-            List<Vrm10SpringBoneJoint> disabledJoints = DisableAllSpringBones(vrmLoader.VrmInstance.gameObject);
+            // 1. SpringBone を事前に無効化（アニメータ切り替え前）
+            List<VRM10SpringBoneJoint> disabledJoints = DisableAllSpringBones(vrmLoader.VrmInstance.gameObject);
+            Debug.Log("🔧 SpringBone disabled before seamless transition");
 
-            // Animator の切り替え処理
-            animator.Rebind();
-            animator.Update(0);
+            // 2. VRMAアニメーション解除
+            if (vrmLoader.VrmInstance != null && vrmLoader.VrmInstance.Runtime != null)
+            {
+                vrmLoader.VrmInstance.Runtime.VrmAnimation = null;
+            }
+            yield return null; // 1フレーム待機
+
+            // 3. アニメータコントローラ設定（Rebindを避ける）
             animator.runtimeAnimatorController = externalController;
+            yield return null; // アニメータコントローラ設定の反映を待つ
 
-            // 100ms 待機してから SpringBone を再有効化
-            yield return new WaitForSeconds(0.1f);
-            EnableSpringBones(disabledJoints);
-            Debug.Log("✅ SpringBone re-enabled after animator switch");
-
-            // 次のアニメーション再生
-            if (string.IsNullOrEmpty(nextState))
-            {
-                Debug.Log("🔄 No next state provided. Returning to default animation: Idle_generic_01");
-                PlayAnimationByName("Idle_generic_01");
-            }
-            else
-            {
-                Debug.Log($"✅ Switching to animation via PlayAnimationByName: {nextState}");
-                PlayAnimationByName(nextState);
-            }
+            // 4. シームレス遷移の実行
+            string targetState = string.IsNullOrEmpty(nextState) ? "Idle_generic_01" : nextState;
+            yield return StartCoroutine(PerformSeamlessTransitionToBuiltinAnimation(targetState, disabledJoints));
         }
         else
         {
@@ -379,31 +438,373 @@ public class AnimationHandler : MonoBehaviour {
     }
 
     /// <summary>
-    /// 全ての SpringBoneJoint を一時的に無効化し、無効化したリストを返す
+    /// VRMAの最終ポーズからビルトインアニメーションへの手動補間による真のシームレス遷移を実行
     /// </summary>
-    private List<Vrm10SpringBoneJoint> DisableAllSpringBones(GameObject root)
+    private IEnumerator PerformSeamlessTransitionToBuiltinAnimation(string targetState, List<VRM10SpringBoneJoint> disabledJoints)
     {
-        var disabled = new List<Vrm10SpringBoneJoint>();
-        if (root == null) return disabled;
+        Debug.Log($"🎯 Starting manual interpolation transition to: {targetState}");
 
-        var joints = root.GetComponentsInChildren<Vrm10SpringBoneJoint>(true);
-        foreach (var joint in joints)
+        // 座標ログ: VRMA終了時
+        LogModelCoordinates("VRMA終了時");
+
+        // 1. VRMA終了時の現在ポーズをキャプチャ
+        Dictionary<string, TransformData> vrmaEndPose = CaptureCurrentPose();
+        Debug.Log($"📸 Captured VRMA end pose: {vrmaEndPose.Count} bones");
+
+        // 2. アニメータコントローラ設定
+        animator.runtimeAnimatorController = externalController;
+        yield return null;
+
+        // 3. ターゲットアニメーションを一時的に再生してポーズをキャプチャ
+        Dictionary<string, TransformData> targetPose = null;
+        yield return StartCoroutine(CaptureTargetAnimationPoseCoroutine(targetState, (result) => targetPose = result));
+        if (targetPose == null || targetPose.Count == 0)
         {
-            if (joint.enabled)
+            Debug.LogError("❌ Failed to capture target pose, falling back to direct transition");
+            PlayAnimationByName(targetState);
+            EnableSpringBones(disabledJoints);
+            yield break;
+        }
+
+        Debug.Log($"📸 Captured target pose: {targetPose.Count} bones");
+
+        // 座標ログ: ターゲットポーズキャプチャ後
+        LogModelCoordinates("ターゲットポーズキャプチャ後");
+
+        // 4. VRMA終了ポーズを復元（Hipsボーン座標を保護）
+        Vector3 vrmaHipsPos = Vector3.zero;
+        Transform hips = FindBoneByName("Hips");
+        if (hips != null)
+        {
+            // VRMA終了時のHips座標を保存（ターゲットポーズキャプチャ前の値）
+            if (vrmaEndPose.ContainsKey(hips.name))
             {
-                joint.enabled = false;
-                disabled.Add(joint);
+                vrmaHipsPos = vrmaEndPose[hips.name].localPosition;
+            }
+            else
+            {
+                vrmaHipsPos = hips.localPosition;
+            }
+        }
+        
+        // VRMA終了ポーズを復元（Hipsボーンを除外）
+        ApplyPoseToModel(vrmaEndPose, excludeHips: true);
+        
+        // VRMA終了時のHips座標を強制復元
+        if (hips != null)
+        {
+            hips.localPosition = vrmaHipsPos;
+            Debug.Log($"🔧 VRMA終了時のHips座標を強制復元: {vrmaHipsPos}");
+        }
+        
+        yield return null;
+
+        // 座標ログ: VRMA終了ポーズ復元後
+        LogModelCoordinates("VRMA終了ポーズ復元後");
+
+        // 5. 手動補間実行
+        float interpolationDuration = 1.0f; // 補間時間（1秒でより滑らかに）
+        yield return StartCoroutine(InterpolateBetweenPoses(vrmaEndPose, targetPose, interpolationDuration));
+
+        // 座標ログ: 補間完了後
+        LogModelCoordinates("補間完了後");
+
+        // 6. 最終的にアニメータに制御を移譲
+        PlayAnimationByName(targetState);
+        yield return new WaitForSeconds(0.5f); // アニメーション安定まで待機時間を延長
+
+        // 座標ログ: アニメータ制御移譲後
+        LogModelCoordinates("アニメータ制御移譲後");
+
+        // 7. Hipsボーン座標の最終確認・固定
+        Transform finalHips = FindBoneByName("Hips");
+        if (finalHips != null && vrmaEndPose.ContainsKey(finalHips.name))
+        {
+            Vector3 originalHipsPos = vrmaEndPose[finalHips.name].localPosition;
+            finalHips.localPosition = originalHipsPos;
+            Debug.Log($"🔒 最終Hips座標確認・固定: {originalHipsPos}");
+        }
+
+        // 8. SpringBone段階的復帰
+        yield return StartCoroutine(GradualEnableSpringBones(disabledJoints, 0.3f));
+        Debug.Log("✅ Manual interpolation transition completed with gradual SpringBone restoration");
+    }
+
+    /// <summary>
+    /// 現在のモデルのポーズをキャプチャする
+    /// </summary>
+    private Dictionary<string, TransformData> CaptureCurrentPose()
+    {
+        var pose = new Dictionary<string, TransformData>();
+        if (vrmModel == null) return pose;
+
+        // 主要なボーンのみキャプチャ（パフォーマンス考慮）
+        var transforms = vrmModel.GetComponentsInChildren<Transform>();
+        foreach (var transform in transforms)
+        {
+            // ボーン名でフィルタリング（VRMの主要ボーンのみ）
+            if (IsImportantBone(transform.name))
+            {
+                pose[transform.name] = new TransformData(transform);
             }
         }
 
-        Debug.Log($"🔧 SpringBone temporarily disabled: {disabled.Count} joints");
+        return pose;
+    }
+
+    /// <summary>
+    /// 指定されたアニメーションのポーズをキャプチャする（コールバック版）
+    /// </summary>
+    private IEnumerator CaptureTargetAnimationPoseCoroutine(string targetState, System.Action<Dictionary<string, TransformData>> callback)
+    {
+        // アニメーションIDとカテゴリを取得
+        string category = "Idle";
+        if (targetState.StartsWith("Other_"))
+            category = "Other";
+        else if (targetState.StartsWith("Layer_"))
+            category = "Layer";
+
+        string animationKey = targetState.Replace(category + "_", "").ToLower();
+        animationKey = animationKey.Split('_')[0];
+        int animationID = GetAnimationID(category, animationKey);
+
+        if (animationID == -1)
+        {
+            Debug.LogError($"❌ Invalid animation ID for {targetState}");
+            callback?.Invoke(null);
+            yield break;
+        }
+
+        // アニメータパラメータ設定
+        if (category == "Idle")
+        {
+            animator.SetInteger("animBaseInt", animationID);
+        }
+        else if (category == "Other")
+        {
+            animator.SetInteger("animOtherInt", animationID);
+        }
+
+        // アニメーション開始
+        var config = ServerConfig.Instance;
+        string animKey = config.GetAnimationName(category, animationID);
+        string stateKey = category + "_" + (animKey.Contains("_") ? animKey : animKey + "_01");
+        int layer = (category == "Layer") ? 1 : 0;
+
+        animator.Play(stateKey, layer, 0f);
+        yield return null; // 1フレーム待機してポーズを安定化
+
+        // ポーズキャプチャ
+        var targetPose = CaptureCurrentPose();
+        callback?.Invoke(targetPose);
+    }
+
+    /// <summary>
+    /// 2つのポーズ間を手動補間する（Hipsボーン座標固定版）
+    /// </summary>
+    private IEnumerator InterpolateBetweenPoses(Dictionary<string, TransformData> startPose, Dictionary<string, TransformData> endPose, float duration)
+    {
+        Debug.Log($"🔄 Starting pose interpolation (duration: {duration}s)");
+
+        float elapsed = 0f;
+        var interpolatedPose = new Dictionary<string, TransformData>();
+
+        // Hipsボーンの固定座標を取得
+        Transform hips = FindBoneByName("Hips");
+        Vector3 fixedHipsPosition = Vector3.zero;
+        if (hips != null && startPose.ContainsKey(hips.name))
+        {
+            fixedHipsPosition = startPose[hips.name].localPosition;
+            Debug.Log($"🔒 Hips座標を固定: {fixedHipsPosition}");
+        }
+
+        // 共通のボーンのみ補間（Hipsを除外）
+        var commonBones = new List<string>();
+        foreach (var boneName in startPose.Keys)
+        {
+            if (endPose.ContainsKey(boneName) && !boneName.Contains("Hips"))
+            {
+                commonBones.Add(boneName);
+            }
+        }
+
+        Debug.Log($"🦴 Interpolating {commonBones.Count} common bones (excluding Hips)");
+
+        while (elapsed < duration)
+        {
+            float t = elapsed / duration;
+            // イージング関数適用（スムーズな遷移）
+            float smoothT = Mathf.SmoothStep(0f, 1f, t);
+
+            // 各ボーンを補間（Hipsを除く）
+            foreach (var boneName in commonBones)
+            {
+                var startData = startPose[boneName];
+                var endData = endPose[boneName];
+
+                var interpolatedData = new TransformData(null)
+                {
+                    localPosition = Vector3.Lerp(startData.localPosition, endData.localPosition, smoothT),
+                    localRotation = Quaternion.Slerp(startData.localRotation, endData.localRotation, smoothT),
+                    localScale = Vector3.Lerp(startData.localScale, endData.localScale, smoothT)
+                };
+
+                interpolatedPose[boneName] = interpolatedData;
+            }
+
+            // 補間されたポーズを適用（Hipsを除外）
+            ApplyPoseToModel(interpolatedPose, excludeHips: true);
+            
+            // Hipsボーン座標を強制固定
+            if (hips != null)
+            {
+                hips.localPosition = fixedHipsPosition;
+            }
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        // 最終ポーズを確実に適用（Hipsを除外）
+        ApplyPoseToModel(endPose, excludeHips: true);
+        
+        // Hipsボーン座標を最終確認・固定
+        if (hips != null)
+        {
+            hips.localPosition = fixedHipsPosition;
+            Debug.Log($"🔒 最終Hips座標固定完了: {fixedHipsPosition}");
+        }
+        
+        Debug.Log("✅ Pose interpolation completed with Hips position locked");
+    }
+
+    /// <summary>
+    /// ポーズをモデルに適用する（Hipsボーンを除外可能）
+    /// </summary>
+    private void ApplyPoseToModel(Dictionary<string, TransformData> pose, bool excludeHips = false)
+    {
+        if (vrmModel == null) return;
+
+        var transforms = vrmModel.GetComponentsInChildren<Transform>();
+        foreach (var transform in transforms)
+        {
+            if (pose.ContainsKey(transform.name))
+            {
+                // Hipsボーン除外オプション
+                if (excludeHips && transform.name.Contains("Hips"))
+                {
+                    continue;
+                }
+                pose[transform.name].ApplyTo(transform);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 重要なボーンかどうかを判定する（パフォーマンス最適化）
+    /// </summary>
+    private bool IsImportantBone(string boneName)
+    {
+        // VRMの主要ボーンのみを対象とする（Hipsも含めてキャプチャ）
+        string[] importantBones = {
+            "Hips", "Spine", "Chest", "UpperChest", "Neck", "Head",
+            "LeftShoulder", "LeftUpperArm", "LeftLowerArm", "LeftHand",
+            "RightShoulder", "RightUpperArm", "RightLowerArm", "RightHand",
+            "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "LeftToes",
+            "RightUpperLeg", "RightLowerLeg", "RightFoot", "RightToes"
+        };
+
+        foreach (var important in importantBones)
+        {
+            if (boneName.Contains(important))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 全ての SpringBoneJoint を一時的に無効化し、無効化したリストを返す（改良版）
+    /// </summary>
+    private List<VRM10SpringBoneJoint> DisableAllSpringBones(GameObject root)
+    {
+        var disabled = new List<VRM10SpringBoneJoint>();
+        if (root == null) return disabled;
+
+        // 1. VRMインスタンスから直接SpringBoneを取得
+        if (vrmLoader?.VrmInstance?.SpringBone != null)
+        {
+            var springBoneManager = vrmLoader.VrmInstance.SpringBone;
+            foreach (var spring in springBoneManager.Springs)
+            {
+                foreach (var joint in spring.Joints)
+                {
+                    if (joint != null && joint.enabled)
+                    {
+                        joint.enabled = false;
+                        disabled.Add(joint);
+                    }
+                }
+            }
+            Debug.Log($"🔧 SpringBone disabled via VRM Instance API: {disabled.Count} joints");
+        }
+        else
+        {
+            // 2. フォールバック: GetComponentsInChildrenを使用
+            var joints = root.GetComponentsInChildren<VRM10SpringBoneJoint>(true);
+            foreach (var joint in joints)
+            {
+                if (joint.enabled)
+                {
+                    joint.enabled = false;
+                    disabled.Add(joint);
+                }
+            }
+            Debug.Log($"🔧 SpringBone disabled via GetComponentsInChildren: {disabled.Count} joints");
+        }
+
+        // SpringBone情報をログ出力
+        LogSpringBoneInfo();
         return disabled;
+    }
+
+    /// <summary>
+    /// SpringBone情報をデバッグログに出力する
+    /// </summary>
+    private void LogSpringBoneInfo()
+    {
+        if (vrmLoader?.VrmInstance?.SpringBone != null)
+        {
+            var springBoneManager = vrmLoader.VrmInstance.SpringBone;
+            int totalJoints = 0;
+            int enabledJoints = 0;
+
+            foreach (var spring in springBoneManager.Springs)
+            {
+                totalJoints += spring.Joints.Count;
+                foreach (var joint in spring.Joints)
+                {
+                    if (joint != null && joint.enabled)
+                    {
+                        enabledJoints++;
+                    }
+                }
+            }
+
+            Debug.Log($"🔍 SpringBone Info: {springBoneManager.Springs.Count} springs, {totalJoints} total joints, {enabledJoints} enabled joints");
+        }
+        else
+        {
+            Debug.Log("🔍 SpringBone Info: SpringBone manager not found");
+        }
     }
 
     /// <summary>
     /// 指定された SpringBoneJoint を再有効化する
     /// </summary>
-    private void EnableSpringBones(List<Vrm10SpringBoneJoint> joints)
+    private void EnableSpringBones(List<VRM10SpringBoneJoint> joints)
     {
         foreach (var joint in joints)
         {
@@ -423,7 +824,7 @@ public class AnimationHandler : MonoBehaviour {
     {
         if (root == null) yield break;
 
-        var joints = root.GetComponentsInChildren<Vrm10SpringBoneJoint>(true);
+        var joints = root.GetComponentsInChildren<VRM10SpringBoneJoint>(true);
         if (joints.Length == 0) yield break;
 
         float timePerStep = duration / joints.Length;
@@ -446,7 +847,7 @@ public class AnimationHandler : MonoBehaviour {
     {
         if (root == null) yield break;
 
-        var joints = new List<Vrm10SpringBoneJoint>(root.GetComponentsInChildren<Vrm10SpringBoneJoint>(true));
+        var joints = new List<VRM10SpringBoneJoint>(root.GetComponentsInChildren<VRM10SpringBoneJoint>(true));
         if (joints.Count == 0) yield break;
 
         // シャッフル
@@ -471,22 +872,70 @@ public class AnimationHandler : MonoBehaviour {
         Debug.Log($"🔧 SpringBone randomly disabled: {joints.Count} joints over {duration}s");
     }
 
+    /// <summary>
+    /// SpringBone を段階的に有効化する（物理リセット防止）
+    /// </summary>
+    private IEnumerator GradualEnableSpringBones(List<VRM10SpringBoneJoint> joints, float duration = 0.3f)
+    {
+        if (joints == null || joints.Count == 0) yield break;
+
+        Debug.Log($"🔧 Starting gradual SpringBone enable: {joints.Count} joints over {duration}s");
+
+        float timePerStep = duration / joints.Count;
+        int enabledCount = 0;
+
+        foreach (var joint in joints)
+        {
+            if (joint != null)
+            {
+                joint.enabled = true;
+                enabledCount++;
+                yield return new WaitForSeconds(timePerStep);
+            }
+        }
+
+        Debug.Log($"🔧 SpringBone gradually enabled: {enabledCount} joints over {duration}s");
+    }
+
     public void ResetAGIAAnimation() {
         if (animator == null) {
             Debug.LogError(i18nMsg.ERROR_ANIMATOR_NOT_SET);
             return;
         }
 
+        // SpringBone を一時的に無効化してからリセット処理を実行
+        StartCoroutine(ResetAGIAAnimationWithSpringBoneProtection());
+    }
+
+    /// <summary>
+    /// SpringBone保護付きのAGIAアニメーションリセット
+    /// </summary>
+    private IEnumerator ResetAGIAAnimationWithSpringBoneProtection()
+    {
+        Debug.Log("🔄 Starting AGIA animation reset with SpringBone protection");
+
+        // 1. SpringBone を事前に無効化
+        List<VRM10SpringBoneJoint> disabledJoints = DisableAllSpringBones(vrmLoader.VrmInstance.gameObject);
+
+        // 2. VRMAアニメーション解除
         if (vrmLoader.VrmInstance != null && vrmLoader.VrmInstance.Runtime != null) {
             vrmLoader.VrmInstance.Runtime.VrmAnimation = null;
             Debug.Log(i18nMsg.LOG_VRMA_ANIMATION_RESET);
         }
+        yield return null; // 1フレーム待機
 
+        // 3. 穏やかなアニメータリセット（Rebindを避ける）
         animator.runtimeAnimatorController = externalController;
-        animator.Rebind();
-        animator.Update(0);
+        yield return null; // アニメータコントローラ設定の反映を待つ
+
+        // 4. デフォルトアニメーション開始
         PlayAnimationByName("Idle_generic_01");
+        yield return new WaitForSeconds(0.2f); // アニメーション安定まで待機
+
+        // 5. SpringBone復帰
+        EnableSpringBones(disabledJoints);
         Debug.Log(i18nMsg.LOG_AGIA_RESET);
+        Debug.Log("✅ AGIA reset completed with SpringBone protection");
     }
 
     // ===============================
@@ -588,6 +1037,64 @@ public class AnimationHandler : MonoBehaviour {
             Debug.Log(string.Format(i18nMsg.LOG_SKINNEDMESH_DISABLED, skinnedMesh.name));
             skinnedMesh.enabled = false;
         }
+    }
+
+    /// <summary>
+    /// モデルの座標情報をログ出力する（デバッグ用）
+    /// </summary>
+    private void LogModelCoordinates(string phase)
+    {
+        if (vrmModel == null)
+        {
+            Debug.Log($"📍 {phase}: VRMモデルがnull");
+            return;
+        }
+
+        // VRMモデル全体の座標
+        Vector3 modelPos = vrmModel.transform.position;
+        Vector3 modelLocalPos = vrmModel.transform.localPosition;
+        
+        Debug.Log($"📍 {phase}: VRMモデル座標 - World: {modelPos}, Local: {modelLocalPos}");
+
+        // Hipsボーンの座標を探す
+        Transform hips = FindBoneByName("Hips");
+        if (hips != null)
+        {
+            Vector3 hipsPos = hips.position;
+            Vector3 hipsLocalPos = hips.localPosition;
+            Debug.Log($"📍 {phase}: Hipsボーン座標 - World: {hipsPos}, Local: {hipsLocalPos}");
+        }
+        else
+        {
+            Debug.Log($"📍 {phase}: Hipsボーンが見つかりません");
+        }
+
+        // Spineボーンの座標も確認
+        Transform spine = FindBoneByName("Spine");
+        if (spine != null)
+        {
+            Vector3 spinePos = spine.position;
+            Vector3 spineLocalPos = spine.localPosition;
+            Debug.Log($"📍 {phase}: Spineボーン座標 - World: {spinePos}, Local: {spineLocalPos}");
+        }
+    }
+
+    /// <summary>
+    /// 指定された名前のボーンを検索する
+    /// </summary>
+    private Transform FindBoneByName(string boneName)
+    {
+        if (vrmModel == null) return null;
+
+        var transforms = vrmModel.GetComponentsInChildren<Transform>();
+        foreach (var transform in transforms)
+        {
+            if (transform.name.Contains(boneName))
+            {
+                return transform;
+            }
+        }
+        return null;
     }
 
     private Dictionary<Transform, Quaternion> CaptureSpringBoneRotations(GameObject root)
