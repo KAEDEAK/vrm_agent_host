@@ -39,8 +39,15 @@ public class AnimationHandler : MonoBehaviour {
     // ポーズキャプチャ時に使用するルート格納キー
     private const string ROOT_KEY = "__ROOT__";
 
-    // VRMA毎のHipsオフセットを保存
-    private Dictionary<string, Vector3> vrmaHipsOffsets = new Dictionary<string, Vector3>();
+    // VRMA毎のHipsオフセットを保存（位置と回転の差分）
+    [Serializable]
+    private class HipsOffset
+    {
+        public Vector3 positionOffset;
+        public Quaternion rotationOffset;
+    }
+
+    private Dictionary<string, HipsOffset> vrmaHipsOffsets = new Dictionary<string, HipsOffset>();
 
     // 現在再生中のVRMAパス
     private string currentVrmaPath = null;
@@ -384,8 +391,13 @@ public class AnimationHandler : MonoBehaviour {
             Debug.Log(string.Format(i18nMsg.LOG_VRMA_APPLIED, file, loop));
             if (vrmaHipsOffsets.TryGetValue(file, out var offset))
             {
-                vrmModel.transform.localPosition += offset;
-                Debug.Log($"Applied cached hips offset {offset} for {file}");
+                Transform hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+                if (hips != null)
+                {
+                    hips.localPosition += offset.positionOffset;
+                    hips.localRotation = offset.rotationOffset * hips.localRotation;
+                    Debug.Log($"Applied cached hips offset {offset.positionOffset} and rotation for {file}");
+                }
             }
         }
         else {
@@ -502,9 +514,10 @@ public class AnimationHandler : MonoBehaviour {
         {
             if (vrmaEndPose.TryGetValue("Hips", out var vrmaHips) && targetPose.TryGetValue("Hips", out var targetHips))
             {
-                Vector3 diff = targetHips.localPosition - vrmaHips.localPosition;
-                vrmaHipsOffsets[vrmaPath] = diff;
-                Debug.Log($"Cached Hips offset for {vrmaPath}: {diff}");
+                Vector3 posDiff = targetHips.localPosition - vrmaHips.localPosition;
+                Quaternion rotDiff = targetHips.localRotation * Quaternion.Inverse(vrmaHips.localRotation);
+                vrmaHipsOffsets[vrmaPath] = new HipsOffset { positionOffset = posDiff, rotationOffset = rotDiff };
+                Debug.Log($"Cached Hips offset for {vrmaPath}: {posDiff}, rotation {rotDiff.eulerAngles}");
             }
         }
 
