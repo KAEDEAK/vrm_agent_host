@@ -238,7 +238,12 @@ public class AnimationHandler : MonoBehaviour {
 
     private IEnumerator WaitForParameterUpdateAndPlay(string stateName) {
         yield return null;
-        animator.Play(stateName);
+        int layer = stateName.StartsWith("Layer_") ? 1 : 0;
+        if (layer >= animator.layerCount || !animator.HasState(layer, Animator.StringToHash(stateName))) {
+            Debug.LogWarning($"Animator state not found: {stateName} (layer {layer})");
+            yield break;
+        }
+        animator.Play(stateName, layer, 0f);
         currentState = stateName;
         Debug.Log(string.Format(i18nMsg.LOG_ANIMATION_PLAYED, stateName));
     }
