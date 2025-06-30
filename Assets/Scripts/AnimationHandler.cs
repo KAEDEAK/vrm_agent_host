@@ -36,6 +36,9 @@ public class AnimationHandler : MonoBehaviour {
     // 現在再生中の VRMA インスタンスを保持（これを破棄する）
     private Vrm10AnimationInstance currentVrmaInstance = null;
 
+    // ポーズキャプチャ時に使用するルート格納キー
+    private const string ROOT_KEY = "__ROOT__";
+
     public void StopAnimation() {
         if (animator != null) {
             animator.speed = 0f;
@@ -454,6 +457,7 @@ public class AnimationHandler : MonoBehaviour {
 
         // 1. VRMA終了時の現在ポーズをキャプチャ
         Dictionary<string, TransformData> vrmaEndPose = CaptureCurrentPose();
+        TransformData vrmaRoot = vrmaEndPose.ContainsKey(ROOT_KEY) ? vrmaEndPose[ROOT_KEY] : null;
         Debug.Log($"📸 Captured VRMA end pose: {vrmaEndPose.Count} bones");
 
         // 2. アニメータコントローラ設定
@@ -496,7 +500,7 @@ public class AnimationHandler : MonoBehaviour {
         }
         
         // VRMA終了ポーズを復元（Hipsボーンを除外）
-        ApplyPoseToModel(vrmaEndPose, excludeHips: true);
+        ApplyPoseToModel(vrmaEndPose, excludeHips: true, rootTransform: vrmaRoot);
         
         // VRMA終了時のHips姿勢を強制復元
         if (hips != null)
@@ -559,6 +563,9 @@ public class AnimationHandler : MonoBehaviour {
                 pose[transform.name] = new TransformData(transform);
             }
         }
+
+        // モデルルートの位置と回転も記録
+        pose[ROOT_KEY] = new TransformData(vrmModel.transform);
 
         return pose;
     }
@@ -680,7 +687,8 @@ public class AnimationHandler : MonoBehaviour {
         }
 
         // 最終ポーズを確実に適用（Hipsを除外）
-        ApplyPoseToModel(endPose, excludeHips: true);
+        TransformData endRoot = endPose.ContainsKey(ROOT_KEY) ? endPose[ROOT_KEY] : null;
+        ApplyPoseToModel(endPose, excludeHips: true, rootTransform: endRoot);
         
         // Hipsボーン姿勢を最終確認・固定
         if (hips != null)
@@ -696,9 +704,15 @@ public class AnimationHandler : MonoBehaviour {
     /// <summary>
     /// ポーズをモデルに適用する（Hipsボーンを除外可能）
     /// </summary>
-    private void ApplyPoseToModel(Dictionary<string, TransformData> pose, bool excludeHips = false)
+    private void ApplyPoseToModel(Dictionary<string, TransformData> pose, bool excludeHips = false, TransformData rootTransform = null)
     {
         if (vrmModel == null) return;
+
+        // ルートトランスフォーム適用
+        if (rootTransform != null)
+        {
+            rootTransform.ApplyTo(vrmModel.transform);
+        }
 
         var transforms = vrmModel.GetComponentsInChildren<Transform>();
         foreach (var transform in transforms)
