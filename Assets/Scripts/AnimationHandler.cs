@@ -39,6 +39,12 @@ public class AnimationHandler : MonoBehaviour {
     // ポーズキャプチャ時に使用するルート格納キー
     private const string ROOT_KEY = "__ROOT__";
 
+    // VRMA毎のHipsオフセットを保存
+    private Dictionary<string, Vector3> vrmaHipsOffsets = new Dictionary<string, Vector3>();
+
+    // 現在再生中のVRMAパス
+    private string currentVrmaPath = null;
+
     public void StopAnimation() {
         if (animator != null) {
             animator.speed = 0f;
@@ -342,6 +348,7 @@ public class AnimationHandler : MonoBehaviour {
     // =========================
 
     public async void PlayVrmaAnimation(string file, bool loop, string nextState = "Idle_generic_01", bool seamless = false) {
+        currentVrmaPath = file;
         if (vrmModel == null) {
             Debug.LogError(i18nMsg.ERROR_VRM_MODEL_NOT_LOADED);
             return;
@@ -375,6 +382,11 @@ public class AnimationHandler : MonoBehaviour {
         if (runtime != null) {
             runtime.VrmAnimation = vrmaAnimation;
             Debug.Log(string.Format(i18nMsg.LOG_VRMA_APPLIED, file, loop));
+            if (vrmaHipsOffsets.TryGetValue(file, out var offset))
+            {
+                vrmModel.transform.localPosition += offset;
+                Debug.Log($"Applied cached hips offset {offset} for {file}");
+            }
         }
         else {
             Debug.LogWarning(i18nMsg.WARNING_VRM_RUNTIME_NOT_FOUND);
@@ -440,7 +452,7 @@ public class AnimationHandler : MonoBehaviour {
 
             // 4. シームレス遷移の実行
             string targetState = string.IsNullOrEmpty(nextState) ? "Idle_generic_01" : nextState;
-            yield return StartCoroutine(PerformSeamlessTransitionToBuiltinAnimation(targetState, disabledJoints));
+            yield return StartCoroutine(PerformSeamlessTransitionToBuiltinAnimation(targetState, disabledJoints, currentVrmaPath));
         }
         else
         {
@@ -451,7 +463,7 @@ public class AnimationHandler : MonoBehaviour {
     /// <summary>
     /// VRMAの最終ポーズからビルトインアニメーションへの手動補間による真のシームレス遷移を実行
     /// </summary>
-    private IEnumerator PerformSeamlessTransitionToBuiltinAnimation(string targetState, List<VRM10SpringBoneJoint> disabledJoints)
+    private IEnumerator PerformSeamlessTransitionToBuiltinAnimation(string targetState, List<VRM10SpringBoneJoint> disabledJoints, string vrmaPath)
     {
         Debug.Log($"🎯 Starting manual interpolation transition to: {targetState}");
 
@@ -484,6 +496,17 @@ public class AnimationHandler : MonoBehaviour {
         }
 
         Debug.Log($"📸 Captured target pose: {targetPose.Count} bones");
+
+        // 初回再生時のみHips差分を記録
+        if (!string.IsNullOrEmpty(vrmaPath) && !vrmaHipsOffsets.ContainsKey(vrmaPath))
+        {
+            if (vrmaEndPose.TryGetValue("Hips", out var vrmaHips) && targetPose.TryGetValue("Hips", out var targetHips))
+            {
+                Vector3 diff = targetHips.localPosition - vrmaHips.localPosition;
+                vrmaHipsOffsets[vrmaPath] = diff;
+                Debug.Log($"Cached Hips offset for {vrmaPath}: {diff}");
+            }
+        }
 
         // 座標ログ: ターゲットポーズキャプチャ後
         LogModelCoordinates("ターゲットポーズキャプチャ後");
