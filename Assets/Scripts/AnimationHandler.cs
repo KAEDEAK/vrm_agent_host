@@ -488,35 +488,8 @@ public class AnimationHandler : MonoBehaviour {
         // 座標ログ: ターゲットポーズキャプチャ後
         LogModelCoordinates("ターゲットポーズキャプチャ後");
 
-        // 4. VRMA終了ポーズを復元（Hipsボーン姿勢を保護）
-        Vector3 vrmaHipsPos = Vector3.zero;
-        Quaternion vrmaHipsRot = Quaternion.identity;
-        Transform hips = FindBoneByName("Hips");
-        if (hips != null)
-        {
-            // VRMA終了時のHips座標・回転を保存（ターゲットポーズキャプチャ前の値）
-            if (vrmaEndPose.ContainsKey(hips.name))
-            {
-                vrmaHipsPos = vrmaEndPose[hips.name].localPosition;
-                vrmaHipsRot = vrmaEndPose[hips.name].localRotation;
-            }
-            else
-            {
-                vrmaHipsPos = hips.localPosition;
-                vrmaHipsRot = hips.localRotation;
-            }
-        }
-        
-        // VRMA終了ポーズを復元（Hipsボーンを除外）
-        ApplyPoseToModel(vrmaEndPose, excludeHips: true, rootTransform: vrmaRoot);
-        
-        // VRMA終了時のHips姿勢を強制復元
-        if (hips != null)
-        {
-            hips.localPosition = vrmaHipsPos;
-            hips.localRotation = vrmaHipsRot;
-            Debug.Log($"🔧 VRMA終了時のHips姿勢を強制復元: pos={vrmaHipsPos}, rot={vrmaHipsRot}");
-        }
+        // 4. VRMA終了ポーズを復元
+        ApplyPoseToModel(vrmaEndPose, rootTransform: vrmaRoot);
         
         yield return null;
 
@@ -539,17 +512,6 @@ public class AnimationHandler : MonoBehaviour {
 
         // 座標ログ: アニメータ制御移譲後
         LogModelCoordinates("アニメータ制御移譲後");
-
-        // 7. Hipsボーン座標の最終確認・固定
-        Transform finalHips = FindBoneByName("Hips");
-        if (finalHips != null && vrmaEndPose.ContainsKey(finalHips.name))
-        {
-            Vector3 originalHipsPos = vrmaEndPose[finalHips.name].localPosition;
-            Quaternion originalHipsRot = vrmaEndPose[finalHips.name].localRotation;
-            finalHips.localPosition = originalHipsPos;
-            finalHips.localRotation = originalHipsRot;
-            Debug.Log($"🔒 最終Hips姿勢確認・固定: pos={originalHipsPos}, rot={originalHipsRot}");
-        }
 
         // 8. SpringBone段階的復帰
         yield return StartCoroutine(GradualEnableSpringBones(disabledJoints, 0.3f));
@@ -643,28 +605,17 @@ public class AnimationHandler : MonoBehaviour {
         float elapsed = 0f;
         var interpolatedPose = new Dictionary<string, TransformData>();
 
-        // Hipsボーンの固定座標を取得
-        Transform hips = FindBoneByName("Hips");
-        Vector3 fixedHipsPosition = Vector3.zero;
-        Quaternion fixedHipsRotation = Quaternion.identity;
-        if (hips != null && startPose.ContainsKey(hips.name))
-        {
-            fixedHipsPosition = startPose[hips.name].localPosition;
-            fixedHipsRotation = startPose[hips.name].localRotation;
-            Debug.Log($"🔒 Hips姿勢を固定: pos={fixedHipsPosition}, rot={fixedHipsRotation}");
-        }
-
-        // 共通のボーンのみ補間（Hipsを除外）
+        // 補間対象の共通ボーンを抽出
         var commonBones = new List<string>();
         foreach (var boneName in startPose.Keys)
         {
-            if (endPose.ContainsKey(boneName) && !boneName.Contains("Hips"))
+            if (endPose.ContainsKey(boneName))
             {
                 commonBones.Add(boneName);
             }
         }
 
-        Debug.Log($"🦴 Interpolating {commonBones.Count} common bones (excluding Hips)");
+        Debug.Log($"🦴 Interpolating {commonBones.Count} bones");
 
         while (elapsed < duration)
         {
@@ -672,7 +623,7 @@ public class AnimationHandler : MonoBehaviour {
             // イージング関数適用（スムーズな遷移）
             float smoothT = Mathf.SmoothStep(0f, 1f, t);
 
-            // 各ボーンを補間（Hipsを除く）
+            // 各ボーンを補間
             foreach (var boneName in commonBones)
             {
                 var startData = startPose[boneName];
@@ -688,33 +639,18 @@ public class AnimationHandler : MonoBehaviour {
                 interpolatedPose[boneName] = interpolatedData;
             }
 
-            // 補間されたポーズを適用（Hipsを除外）
-            ApplyPoseToModel(interpolatedPose, excludeHips: true);
-            
-            // Hipsボーン姿勢を強制固定
-            if (hips != null)
-            {
-                hips.localPosition = fixedHipsPosition;
-                hips.localRotation = fixedHipsRotation;
-            }
+            // 補間されたポーズを適用
+            ApplyPoseToModel(interpolatedPose);
 
             elapsed += Time.deltaTime;
             yield return null;
         }
 
-        // 最終ポーズを確実に適用（Hipsを除外）
+        // 最終ポーズを確実に適用
         TransformData endRoot = endPose.ContainsKey(ROOT_KEY) ? endPose[ROOT_KEY] : null;
-        ApplyPoseToModel(endPose, excludeHips: true, rootTransform: endRoot);
-        
-        // Hipsボーン姿勢を最終確認・固定
-        if (hips != null)
-        {
-            hips.localPosition = fixedHipsPosition;
-            hips.localRotation = fixedHipsRotation;
-            Debug.Log($"🔒 最終Hips姿勢固定完了: pos={fixedHipsPosition}, rot={fixedHipsRotation}");
-        }
-        
-        Debug.Log("✅ Pose interpolation completed with Hips position locked");
+        ApplyPoseToModel(endPose, rootTransform: endRoot);
+
+        Debug.Log("✅ Pose interpolation completed");
     }
 
     /// <summary>
