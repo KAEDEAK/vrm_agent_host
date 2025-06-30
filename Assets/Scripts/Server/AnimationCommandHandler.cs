@@ -71,7 +71,8 @@ public class AnimationCommandHandler : HttpCommandHandlerBase
                 if (!string.IsNullOrEmpty(fileParam) && fileParam.EndsWith(".vrma", StringComparison.OrdinalIgnoreCase))
                 {
                     bool shouldLoop = GetQueryYesNo(query, "continue", false);
-                    _animationHandler.PlayVrmaAnimation(fileParam, shouldLoop);
+                    bool seamless = ServerConfig.Instance.GetAutoPrepareSeamless();
+                    _animationHandler.PlayVrmaAnimation(fileParam, shouldLoop, seamless: seamless);
                     responseData.status = 200;
                     responseData.message = string.Format(i18nMsg.RESPONSE_VRMA_ANIMATION_STARTED, fileParam, shouldLoop);
                 }
@@ -111,8 +112,8 @@ public class AnimationCommandHandler : HttpCommandHandlerBase
                             }
                             else
                             {
-                                // seamless は y/n 仕様に対応
-                                bool seamless = GetQueryYesNo(query, "seamless", false);
+                                // seamless は y/n 指定。未指定時は autoPrepareSeamless 設定を使用
+                                bool seamless = GetQueryYesNo(query, "seamless", ServerConfig.Instance.GetAutoPrepareSeamless());
                                 if (mappingEntry.Value.type == AnimationType.IntBased)
                                 {
                                     _animationHandler.PlayAnimationByID(mappingEntry.Value.intValue, category, seamless);

@@ -18,6 +18,8 @@ the target pose is stored as a position and rotation offset for the Hips bone.
 When the same VRM model plays the animation again, the cached offset is applied to
 keep the pose aligned. Offsets are kept only in memory and are not configurable or
 persistent across models.
+Coordinate shifts originate from differences in animation poses. Instead of manually adjusting positions, enable `autoPrepareSeamless` for smoother transitions.
+When enabled, a missing `seamless` parameter in the `play` command is treated as `true`.
 
 ## Lip Sync Channels
 - Channel `0`: WavePlayback
