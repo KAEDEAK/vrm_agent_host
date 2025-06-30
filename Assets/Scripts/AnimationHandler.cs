@@ -47,7 +47,12 @@ public class AnimationHandler : MonoBehaviour {
         public Quaternion rotationOffset;
     }
 
-    private Dictionary<string, HipsOffset> vrmaHipsOffsets = new Dictionary<string, HipsOffset>();
+    // Offsets keyed first by VRM file path then VRMA file path
+    private Dictionary<string, Dictionary<string, HipsOffset>> vrmVrmaHipsOffsets =
+        new Dictionary<string, Dictionary<string, HipsOffset>>();
+
+    // Currently loaded VRM path
+    private string currentVrmPath = null;
 
     // 現在再生中のVRMAパス
     private string currentVrmaPath = null;
@@ -117,6 +122,12 @@ public class AnimationHandler : MonoBehaviour {
         vrmModel = loadedModel;
         vrmModel.transform.localPosition = Vector3.zero;
         vrmModel.SetActive(true);
+        currentVrmPath = vrmLoader?.CurrentVrmPath;
+        if (!string.IsNullOrEmpty(currentVrmPath))
+        {
+            vrmVrmaHipsOffsets[currentVrmPath] = new Dictionary<string, HipsOffset>();
+        }
+        currentVrmaPath = null;
         InitializeAnimator();
         ExtractAnimationStates();
         isInitialized = true;
@@ -389,7 +400,9 @@ public class AnimationHandler : MonoBehaviour {
         if (runtime != null) {
             runtime.VrmAnimation = vrmaAnimation;
             Debug.Log(string.Format(i18nMsg.LOG_VRMA_APPLIED, file, loop));
-            if (vrmaHipsOffsets.TryGetValue(file, out var offset))
+            if (!string.IsNullOrEmpty(currentVrmPath) &&
+                vrmVrmaHipsOffsets.TryGetValue(currentVrmPath, out var vrmaMap) &&
+                vrmaMap.TryGetValue(file, out var offset))
             {
                 Transform hips = animator.GetBoneTransform(HumanBodyBones.Hips);
                 if (hips != null)
@@ -510,14 +523,22 @@ public class AnimationHandler : MonoBehaviour {
         Debug.Log($"📸 Captured target pose: {targetPose.Count} bones");
 
         // 初回再生時のみHips差分を記録
-        if (!string.IsNullOrEmpty(vrmaPath) && !vrmaHipsOffsets.ContainsKey(vrmaPath))
+        if (!string.IsNullOrEmpty(vrmaPath) && !string.IsNullOrEmpty(currentVrmPath))
         {
-            if (vrmaEndPose.TryGetValue("Hips", out var vrmaHips) && targetPose.TryGetValue("Hips", out var targetHips))
+            if (!vrmVrmaHipsOffsets.TryGetValue(currentVrmPath, out var map))
+            {
+                map = new Dictionary<string, HipsOffset>();
+                vrmVrmaHipsOffsets[currentVrmPath] = map;
+            }
+
+            if (!map.ContainsKey(vrmaPath) &&
+                vrmaEndPose.TryGetValue("Hips", out var vrmaHips) &&
+                targetPose.TryGetValue("Hips", out var targetHips))
             {
                 Vector3 posDiff = targetHips.localPosition - vrmaHips.localPosition;
                 Quaternion rotDiff = targetHips.localRotation * Quaternion.Inverse(vrmaHips.localRotation);
-                vrmaHipsOffsets[vrmaPath] = new HipsOffset { positionOffset = posDiff, rotationOffset = rotDiff };
-                Debug.Log($"Cached Hips offset for {vrmaPath}: {posDiff}, rotation {rotDiff.eulerAngles}");
+                map[vrmaPath] = new HipsOffset { positionOffset = posDiff, rotationOffset = rotDiff };
+                Debug.Log($"Cached Hips offset for {vrmaPath} on {currentVrmPath}: {posDiff}, rotation {rotDiff.eulerAngles}");
             }
         }
 
