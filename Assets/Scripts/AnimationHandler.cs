@@ -316,54 +316,159 @@ public class AnimationHandler : MonoBehaviour {
     }
 
     private IEnumerator WaitForVrmaToFinish(Vrm10AnimationInstance vrmaInstance, string nextState = "") {
-        if (vrmaInstance == null) {
-            yield break;
-        }
+        // 改良版メソッドへ委譲
+        yield return StartCoroutine(ImprovedWaitForVrmaToFinish(vrmaInstance, nextState));
+    }
+
+    /// <summary>
+    /// SpringBone を一時的に無効化してアニメータ切り替え時の物理リセットを防ぐ
+    /// </summary>
+    private IEnumerator ImprovedWaitForVrmaToFinish(Vrm10AnimationInstance vrmaInstance, string nextState = "")
+    {
+        if (vrmaInstance == null) yield break;
 
         Animation anim = vrmaInstance.GetComponent<Animation>();
-        if (anim == null || anim.clip == null) {
+        if (anim == null || anim.clip == null)
+        {
             Debug.LogWarning("⚠ VRMA animation component is missing.");
             yield break;
         }
 
+        // VRMA アニメーションの終了を待つ
         yield return new WaitForSeconds(anim.clip.length);
-
         Debug.Log($"🎬 VRMA animation finished. Preparing to switch to {nextState}");
 
-        if (vrmLoader.VrmInstance != null && vrmLoader.VrmInstance.Runtime != null) {
+        if (vrmLoader.VrmInstance != null && vrmLoader.VrmInstance.Runtime != null)
+        {
             vrmLoader.VrmInstance.Runtime.VrmAnimation = null;
         }
 
         yield return null;
 
-        if (animator != null) {
-            Dictionary<Transform, Quaternion> savedSpring = null;
-            if (vrmLoader != null && vrmLoader.VrmInstance != null)
-            {
-                savedSpring = CaptureSpringBoneRotations(vrmLoader.VrmInstance.gameObject);
-            }
+        if (animator != null)
+        {
+            // SpringBone を一時的に無効化
+            List<Vrm10SpringBoneJoint> disabledJoints = DisableAllSpringBones(vrmLoader.VrmInstance.gameObject);
 
+            // Animator の切り替え処理
             animator.Rebind();
             animator.Update(0);
             animator.runtimeAnimatorController = externalController;
 
-            if (savedSpring != null)
-            {
-                StartCoroutine(RestoreSpringBoneRotationsNextFrame(savedSpring));
-            }
+            // 100ms 待機してから SpringBone を再有効化
+            yield return new WaitForSeconds(0.1f);
+            EnableSpringBones(disabledJoints);
+            Debug.Log("✅ SpringBone re-enabled after animator switch");
 
-            if (string.IsNullOrEmpty(nextState)) {
+            // 次のアニメーション再生
+            if (string.IsNullOrEmpty(nextState))
+            {
                 Debug.Log("🔄 No next state provided. Returning to default animation: Idle_generic_01");
                 PlayAnimationByName("Idle_generic_01");
-                yield break;
             }
-
-            Debug.Log($"✅ Switching to animation via PlayAnimationByName: {nextState}");
-            PlayAnimationByName(nextState);
+            else
+            {
+                Debug.Log($"✅ Switching to animation via PlayAnimationByName: {nextState}");
+                PlayAnimationByName(nextState);
+            }
         }
-        else {
+        else
+        {
             Debug.LogError("❌ ERROR: Animator is null, cannot switch animation.");
         }
+    }
+
+    /// <summary>
+    /// 全ての SpringBoneJoint を一時的に無効化し、無効化したリストを返す
+    /// </summary>
+    private List<Vrm10SpringBoneJoint> DisableAllSpringBones(GameObject root)
+    {
+        var disabled = new List<Vrm10SpringBoneJoint>();
+        if (root == null) return disabled;
+
+        var joints = root.GetComponentsInChildren<Vrm10SpringBoneJoint>(true);
+        foreach (var joint in joints)
+        {
+            if (joint.enabled)
+            {
+                joint.enabled = false;
+                disabled.Add(joint);
+            }
+        }
+
+        Debug.Log($"🔧 SpringBone temporarily disabled: {disabled.Count} joints");
+        return disabled;
+    }
+
+    /// <summary>
+    /// 指定された SpringBoneJoint を再有効化する
+    /// </summary>
+    private void EnableSpringBones(List<Vrm10SpringBoneJoint> joints)
+    {
+        foreach (var joint in joints)
+        {
+            if (joint != null)
+            {
+                joint.enabled = true;
+            }
+        }
+
+        Debug.Log($"🔧 SpringBone re-enabled: {joints.Count} joints");
+    }
+
+    /// <summary>
+    /// SpringBone を段階的に無効化するオプションメソッド
+    /// </summary>
+    private IEnumerator GradualDisableSpringBones(GameObject root, float duration = 0.2f)
+    {
+        if (root == null) yield break;
+
+        var joints = root.GetComponentsInChildren<Vrm10SpringBoneJoint>(true);
+        if (joints.Length == 0) yield break;
+
+        float timePerStep = duration / joints.Length;
+        foreach (var joint in joints)
+        {
+            if (joint.enabled)
+            {
+                joint.enabled = false;
+                yield return new WaitForSeconds(timePerStep);
+            }
+        }
+
+        Debug.Log($"🔧 SpringBone gradually disabled: {joints.Length} joints over {duration}s");
+    }
+
+    /// <summary>
+    /// SpringBone をランダムな順序で無効化するオプションメソッド
+    /// </summary>
+    private IEnumerator RandomDisableSpringBones(GameObject root, float duration = 0.15f)
+    {
+        if (root == null) yield break;
+
+        var joints = new List<Vrm10SpringBoneJoint>(root.GetComponentsInChildren<Vrm10SpringBoneJoint>(true));
+        if (joints.Count == 0) yield break;
+
+        // シャッフル
+        for (int i = 0; i < joints.Count; i++)
+        {
+            var temp = joints[i];
+            int randomIndex = UnityEngine.Random.Range(i, joints.Count);
+            joints[i] = joints[randomIndex];
+            joints[randomIndex] = temp;
+        }
+
+        float timePerStep = duration / joints.Count;
+        foreach (var joint in joints)
+        {
+            if (joint.enabled)
+            {
+                joint.enabled = false;
+                yield return new WaitForSeconds(timePerStep);
+            }
+        }
+
+        Debug.Log($"🔧 SpringBone randomly disabled: {joints.Count} joints over {duration}s");
     }
 
     public void ResetAGIAAnimation() {
