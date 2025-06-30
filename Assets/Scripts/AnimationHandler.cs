@@ -414,8 +414,11 @@ public class AnimationHandler : MonoBehaviour {
             yield break;
         }
 
-        // VRMA アニメーションの終了を待つ
-        yield return new WaitForSeconds(anim.clip.length);
+        // VRMA アニメーションが停止するまで待機（クリップ長に依存しない）
+        while (anim.isPlaying)
+        {
+            yield return null;
+        }
         Debug.Log($"🎬 VRMA animation finished. Preparing seamless transition to {nextState}");
 
         if (animator != null)
