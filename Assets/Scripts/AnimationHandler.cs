@@ -36,6 +36,18 @@ public class AnimationHandler : MonoBehaviour {
     // 現在再生中の VRMA インスタンスを保持（これを破棄する）
     private Vrm10AnimationInstance currentVrmaInstance = null;
 
+    /// <summary>
+    /// Returns true when built-in AGIA animations are playing
+    /// (i.e. no external VRMA is active).
+    /// </summary>
+    public bool IsAgiaPlaying
+    {
+        get
+        {
+            return isInitialized && currentVrmaInstance == null && animator != null && animator.speed > 0f;
+        }
+    }
+
     public void StopAnimation() {
         if (animator != null) {
             animator.speed = 0f;
