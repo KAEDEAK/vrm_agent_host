@@ -76,6 +76,20 @@ public class AnimationHandler : MonoBehaviour {
     /// </summary>
     public bool IsPlayingAGIA => agiaLockCount != 0;
 
+    /// <summary>
+    /// Called before loading a new VRM model to stop running coroutines
+    /// and clear current animator reference.
+    /// </summary>
+    public void PrepareForVrmReload()
+    {
+        StopAllCoroutines();
+        animator = null;
+        vrmModel = null;
+        isInitialized = false;
+        currentVrmaInstance = null;
+        agiaLockCount = 0;
+    }
+
     public void StopAnimation() {
         if (animator != null) {
             animator.speed = 0f;
