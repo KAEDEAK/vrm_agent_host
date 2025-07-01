@@ -154,7 +154,7 @@ public class AnimationServer : MonoBehaviour {
         commandHandlers = new Dictionary<string, IHttpCommandHandler> {
             { "animation",  new AnimationCommandHandler(animationHandler, vrmLoader) },
             { "lipSync",    new LipSyncCommandHandler(lipSync) },
-            { "vrm",        new VrmCommandHandler(vrmLoader) },
+            { "vrm",        new VrmCommandHandler(vrmLoader, animationHandler) },
             { "background", new BackgroundCommandHandler(imageLoader) },
             { "server",     new ServerCommandHandler() },
             { "camera",     new CameraCommandHandler(vrmLoader) },
