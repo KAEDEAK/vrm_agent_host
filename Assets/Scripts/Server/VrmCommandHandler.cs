@@ -8,6 +8,7 @@ using System.IO;
 
 public class VrmCommandHandler : HttpCommandHandlerBase {
     private VRMLoader _vrmLoader;
+    private AnimationHandler _animationHandler;
 
     // 許可するコマンド一覧を統一（必要に応じて拡張）
     private static readonly string[] AllowedCommands = {
@@ -19,8 +20,9 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
     private Coroutine _moveCoroutine;
     private Coroutine _rotateCoroutine;
 
-    public VrmCommandHandler(VRMLoader vrmLoader) {
+    public VrmCommandHandler(VRMLoader vrmLoader, AnimationHandler animationHandler) {
         _vrmLoader = vrmLoader;
+        _animationHandler = animationHandler;
     }
 
     public override async void HandleCommand(HttpListenerContext context, NameValueCollection query) {
@@ -37,6 +39,14 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
 
         // "load" コマンドは特殊扱い
         if (cmd == "load") {
+            // If AGIA animation is playing, reject with busy status
+            if (_animationHandler != null && _animationHandler.IsAgiaPlaying) {
+                responseData.status = 409;
+                responseData.message = "busy";
+                SendResponse(context, responseData);
+                return;
+            }
+
             string file = GetQueryParam(query, "file", null);
             if (!string.IsNullOrEmpty(file)) {
                 string fullPath = UserPaths.GetVRMFilePath(file);
