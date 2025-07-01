@@ -10,6 +10,7 @@ using UnityEditor.Animations;
 #endif
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 
 public class AnimationHandler : MonoBehaviour {
     [Header("Animator Controller")]
@@ -36,6 +37,9 @@ public class AnimationHandler : MonoBehaviour {
     // 現在再生中の VRMA インスタンスを保持（これを破棄する）
     private Vrm10AnimationInstance currentVrmaInstance = null;
 
+    // AGIA playback lock counter
+    private int agiaLockCount = 0;
+
     /// <summary>
     /// Returns true when built-in AGIA animations are playing
     /// (i.e. no external VRMA is active).
@@ -47,6 +51,30 @@ public class AnimationHandler : MonoBehaviour {
             return isInitialized && currentVrmaInstance == null && animator != null && animator.speed > 0f;
         }
     }
+
+    /// <summary>
+    /// Increment AGIA playback lock counter
+    /// </summary>
+    public void LockAGIA()
+    {
+        Interlocked.Increment(ref agiaLockCount);
+    }
+
+    /// <summary>
+    /// Decrement AGIA playback lock counter
+    /// </summary>
+    public void UnlockAGIA()
+    {
+        if (Interlocked.Decrement(ref agiaLockCount) < 0)
+        {
+            Interlocked.Exchange(ref agiaLockCount, 0);
+        }
+    }
+
+    /// <summary>
+    /// Returns true when AGIA is locked (playing)
+    /// </summary>
+    public bool IsPlayingAGIA => agiaLockCount != 0;
 
     public void StopAnimation() {
         if (animator != null) {
@@ -243,6 +271,7 @@ public class AnimationHandler : MonoBehaviour {
                 lastAnimationID = animationID;
                 lastAnimationCategory = category;
                 string stateName = (category == "Layer") ? $"Layer_{animationID}" : $"ID_{animationID}";
+                LockAGIA();
                 StartCoroutine(WaitForParameterUpdateAndPlay(stateName));
             }
         });
@@ -253,6 +282,22 @@ public class AnimationHandler : MonoBehaviour {
         animator.Play(stateName);
         currentState = stateName;
         Debug.Log(string.Format(i18nMsg.LOG_ANIMATION_PLAYED, stateName));
+        StartCoroutine(MonitorAnimationCompletion(stateName));
+    }
+
+    private IEnumerator MonitorAnimationCompletion(string stateName)
+    {
+        if (animator == null) yield break;
+        while (true)
+        {
+            var info = animator.GetCurrentAnimatorStateInfo(0);
+            if (!info.IsName(stateName))
+                break;
+            if (info.normalizedTime >= 1f && !animator.IsInTransition(0))
+                break;
+            yield return null;
+        }
+        UnlockAGIA();
     }
 
     public string GetAnimationStatusJson() {
@@ -260,6 +305,7 @@ public class AnimationHandler : MonoBehaviour {
         statusInfo["currentAnimation"] = currentState;
         statusInfo["availableStates"] = animationStates;
         statusInfo["isInitialized"] = isInitialized;
+        statusInfo["isPlayingAGIA"] = IsPlayingAGIA;
         return SimpleJsonBuilder.Serialize(statusInfo);
     }
 
@@ -494,6 +540,7 @@ public class AnimationHandler : MonoBehaviour {
     private IEnumerator ResetAGIAAnimationWithSpringBoneProtection()
     {
         Debug.Log("🔄 Starting AGIA animation reset with SpringBone protection");
+        LockAGIA();
 
         // 1. SpringBone を事前に無効化
         List<Vrm10SpringBoneJoint> disabledJoints = DisableAllSpringBones(vrmLoader.VrmInstance.gameObject);
@@ -517,6 +564,7 @@ public class AnimationHandler : MonoBehaviour {
         EnableSpringBones(disabledJoints);
         Debug.Log(i18nMsg.LOG_AGIA_RESET);
         Debug.Log("✅ AGIA reset completed with SpringBone protection");
+        UnlockAGIA();
     }
 
     // ===============================
@@ -527,8 +575,10 @@ public class AnimationHandler : MonoBehaviour {
             Debug.LogError("PlayAnimationByState: Animator is not set.");
             return;
         }
+        LockAGIA();
         animator.Play(stateName, layer, normalizedTime);
         Debug.Log(string.Format(i18nMsg.LOG_ANIMATION_PLAYED, stateName));
+        StartCoroutine(MonitorAnimationCompletion(stateName));
     }
 
     /// <summary>
