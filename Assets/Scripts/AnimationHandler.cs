@@ -22,12 +22,12 @@ public class AnimationHandler : MonoBehaviour {
 
     public bool IsInitialized { get { return isInitialized; } }
     /// <summary>
-    /// Returns true when the Animator is actively playing.
-    /// Used to reject VRM load requests during animation playback.
+    /// Returns true while a VRMA animation clip is playing.
+    /// Used to reject VRM load requests until the clip finishes.
     /// </summary>
     public bool IsAnimationPlaying {
         get {
-            return isInitialized && animator != null && animator.speed > 0f;
+            return currentVrmaInstance != null;
         }
     }
     private List<string> animationStates = new List<string>();
@@ -375,6 +375,7 @@ public class AnimationHandler : MonoBehaviour {
             // 6. SpringBone を段階的に復帰
             EnableSpringBones(disabledJoints);
             Debug.Log("✅ SpringBone re-enabled after seamless transition completed");
+            currentVrmaInstance = null; // mark animation finished
         }
         else
         {
