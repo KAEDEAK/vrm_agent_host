@@ -12,14 +12,6 @@ This document summarizes implementation notes and conventions for the Visual Ava
 - Maximum payload size is `wavePayloadMaxBytes` (default 5,000,000 bytes).
 - Concurrency behavior is controlled by `wavePlaybackConcurrency`: `interrupt`, `reject`, or `queue`.
 
-## [Implemented] VRMA Hips Offset Caching
-On first playback of a VRMA animation, the difference between the VRMA end pose and
-the target pose is stored as a position and rotation offset for the Hips bone.
-When the same VRM model plays the animation again, the cached offset is applied to
-keep the pose aligned. Offsets are kept only in memory and are not configurable or
-persistent across models.
-Coordinate shifts originate from differences in animation poses. Instead of manually adjusting positions, enable `autoPrepareSeamless` for smoother transitions.
-When enabled, a missing `seamless` parameter in the `play` command is treated as `true`.
 
 ## Lip Sync Channels
 - Channel `0`: WavePlayback
