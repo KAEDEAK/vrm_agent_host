@@ -21,6 +21,15 @@ public class AnimationHandler : MonoBehaviour {
     private bool isInitialized = false; // 初期化完了フラグ
 
     public bool IsInitialized { get { return isInitialized; } }
+    /// <summary>
+    /// Returns true when the Animator is actively playing.
+    /// Used to reject VRM load requests during animation playback.
+    /// </summary>
+    public bool IsAnimationPlaying {
+        get {
+            return isInitialized && animator != null && animator.speed > 0f;
+        }
+    }
     private List<string> animationStates = new List<string>();
     private int lastAnimationID = -1;
     private string lastAnimationCategory = "";
