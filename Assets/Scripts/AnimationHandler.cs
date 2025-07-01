@@ -216,9 +216,12 @@ public class AnimationHandler : MonoBehaviour {
 
     private IEnumerator ForceStateAfterTransition(string stateKey, int layer, float delay) {
         yield return new WaitForSeconds(delay);
-        animator.Play(stateKey, layer, 0f);
-        currentState = stateKey;
-        Debug.Log(string.Format(i18nMsg.LOG_FORCE_STATE, stateKey, layer));
+        if (animator != null) {
+            animator.Play(stateKey, layer, 0f);
+            currentState = stateKey;
+            Debug.Log(string.Format(i18nMsg.LOG_FORCE_STATE, stateKey, layer));
+        }
+        UnlockAGIA();
     }
 
     // 従来の IntBased 再生メソッド。HTTP 経由からはこちらが Idle, Other 用に呼ばれる。
@@ -252,6 +255,7 @@ public class AnimationHandler : MonoBehaviour {
                 else if (category == "Other") {
                     animator.SetInteger("animOtherInt", animationID);
                 }
+                LockAGIA();
                 animator.CrossFadeInFixedTime(stateKey, transitionDuration, layer, 0f);
                 currentState = stateKey;
                 lastAnimationID = animationID;
