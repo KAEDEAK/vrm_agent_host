@@ -56,6 +56,7 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                 }
                 else {
                     Debug.Log(string.Format(i18nMsg.LOG_VRM_LOAD_REQUEST, fullPath));
+                    _animationHandler?.PrepareForVrmReload();
                     await _vrmLoader.ReloadVRMAsync(fullPath);
                     responseData.status = 200;
                     responseData.message = string.Format(i18nMsg.RESPONSE_VRM_LOADED, file);
