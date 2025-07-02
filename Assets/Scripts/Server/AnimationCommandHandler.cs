@@ -20,7 +20,8 @@ public class AnimationCommandHandler : HttpCommandHandlerBase
     private static readonly string[] AllowedCommands = {
         "reset", "play", "stop", "resume", "getstatus",
         "shape", "mouth", "autoPrepareSeamless", "getAutoPrepareSeamless",
-        "reset_blink", "reset_mouth", "autoBlink"
+        "reset_blink", "reset_mouth", "autoBlink",
+        "debug_lock_status", "debug_force_unlock"
     };
 
     public AnimationCommandHandler(AnimationHandler animationHandler, VRMLoader vrmLoader)
@@ -58,9 +59,13 @@ public class AnimationCommandHandler : HttpCommandHandlerBase
                 }
                 else
                 {
+                    // ロックカウンターもリセット
+                    int oldLockCount = _animationHandler.GetAgiaLockCount();
                     _animationHandler.ResetAGIAAnimation();
+                    _animationHandler.ForceResetAgiaLock();
+                    
                     responseData.status = 200;
-                    responseData.message = i18nMsg.RESPONSE_AGIA_RESET;
+                    responseData.message = $"{i18nMsg.RESPONSE_AGIA_RESET} (Lock counter reset from {oldLockCount} to 0)";
                 }
                 break;
 
@@ -574,7 +579,43 @@ public class AnimationCommandHandler : HttpCommandHandlerBase
             }
             #endregion
 
-            #region 7) 存在しないコマンド（deprecated）
+            #region 7) デバッグコマンド
+            case "debug_lock_status":
+            {
+                if (_animationHandler != null)
+                {
+                    int lockCount = _animationHandler.GetAgiaLockCount();
+                    bool isPlaying = _animationHandler.IsAgiaPlaying;
+                    responseData.status = 200;
+                    responseData.message = $"AGIA Lock Status: count={lockCount}, isPlaying={isPlaying}";
+                }
+                else
+                {
+                    responseData.status = 500;
+                    responseData.message = "AnimationHandler not available";
+                }
+                break;
+            }
+
+            case "debug_force_unlock":
+            {
+                if (_animationHandler != null)
+                {
+                    int oldCount = _animationHandler.GetAgiaLockCount();
+                    _animationHandler.ForceResetAgiaLock();
+                    responseData.status = 200;
+                    responseData.message = $"Force reset AGIA lock counter from {oldCount} to 0";
+                }
+                else
+                {
+                    responseData.status = 500;
+                    responseData.message = "AnimationHandler not available";
+                }
+                break;
+            }
+            #endregion
+
+            #region 8) 存在しないコマンド（deprecated）
             default:
                 Debug.LogWarning($"[DEPRECATED COMMAND] '{cmd}' was previously accepted but is now deprecated.");
                 responseData.status = 410; // HTTP 410 Gone

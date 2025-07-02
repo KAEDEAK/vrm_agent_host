@@ -13,7 +13,8 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
     // 許可するコマンド一覧を統一（必要に応じて拡張）
     private static readonly string[] AllowedCommands = {
         "load", "setLoc", "getLoc", "getRot", "setRot",
-        "move", "rotate", "stop_move", "stop_rotate"
+        "move", "rotate", "stop_move", "stop_rotate",
+        "debug_lock_status", "debug_force_unlock"
     };
 
     // 移動・回転用のコルーチンハンドル
@@ -41,6 +42,7 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
         if (cmd == "load") {
             // If AGIA animation is playing, reject with busy status
             if (_animationHandler != null && _animationHandler.IsAgiaPlaying) {
+                Debug.LogWarning($"[VRM Load Blocked] AGIA animation is playing (lock count: {_animationHandler.GetAgiaLockCount()}). VRM load request rejected.");
                 responseData.status = 409;
                 responseData.message = "busy";
                 SendResponse(context, responseData);
@@ -65,6 +67,40 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
             else {
                 responseData.status = 400;
                 responseData.message = i18nMsg.RESPONSE_FILE_PARAM_MISSING;
+            }
+            SendResponse(context, responseData);
+            return;
+        }
+
+        // デバッグコマンドはVRMインスタンス不要
+        if (cmd == "debug_lock_status" || cmd == "debug_force_unlock") {
+            switch (cmd) {
+                case "debug_lock_status": {
+                        if (_animationHandler != null) {
+                            int lockCount = _animationHandler.GetAgiaLockCount();
+                            bool isPlaying = _animationHandler.IsAgiaPlaying;
+                            responseData.status = 200;
+                            responseData.message = $"AGIA Lock Status: count={lockCount}, isPlaying={isPlaying}";
+                        }
+                        else {
+                            responseData.status = 500;
+                            responseData.message = "AnimationHandler not available";
+                        }
+                        break;
+                    }
+                case "debug_force_unlock": {
+                        if (_animationHandler != null) {
+                            int oldCount = _animationHandler.GetAgiaLockCount();
+                            _animationHandler.ForceResetAgiaLock();
+                            responseData.status = 200;
+                            responseData.message = $"Force reset AGIA lock counter from {oldCount} to 0";
+                        }
+                        else {
+                            responseData.status = 500;
+                            responseData.message = "AnimationHandler not available";
+                        }
+                        break;
+                    }
             }
             SendResponse(context, responseData);
             return;

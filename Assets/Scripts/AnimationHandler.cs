@@ -48,7 +48,7 @@ public class AnimationHandler : MonoBehaviour {
     {
         get
         {
-            return isInitialized && currentVrmaInstance == null && animator != null && animator.speed > 0f;
+            return agiaLockCount > 0;
         }
     }
 
@@ -75,6 +75,20 @@ public class AnimationHandler : MonoBehaviour {
     /// Returns true when AGIA is locked (playing)
     /// </summary>
     public bool IsPlayingAGIA => agiaLockCount != 0;
+
+    /// <summary>
+    /// Get current AGIA lock count for debugging
+    /// </summary>
+    public int GetAgiaLockCount() => agiaLockCount;
+
+    /// <summary>
+    /// Force reset AGIA lock counter (emergency use only)
+    /// </summary>
+    public void ForceResetAgiaLock()
+    {
+        Debug.LogWarning($"[EMERGENCY] Force resetting AGIA lock counter from {agiaLockCount} to 0");
+        Interlocked.Exchange(ref agiaLockCount, 0);
+    }
 
     /// <summary>
     /// Called before loading a new VRM model to stop running coroutines
@@ -194,6 +208,10 @@ public class AnimationHandler : MonoBehaviour {
             Debug.LogError(i18nMsg.ERROR_VRMLOADER_NOT_ATTACHED);
         }
         onAnimationReady += OnAnimationReady;
+        
+        // StateMachineBehaviourのイベントを購読
+        AnimationStateBehaviour.OnAnimationEnter += OnAnimationStateEnter;
+        AnimationStateBehaviour.OnAnimationExit += OnAnimationStateExit;
     }
 
     private void OnDestroy() {
@@ -201,6 +219,10 @@ public class AnimationHandler : MonoBehaviour {
             vrmLoader.OnVRMLoadComplete -= OnModelLoaded;
         }
         onAnimationReady -= OnAnimationReady;
+        
+        // StateMachineBehaviourのイベントを解除
+        AnimationStateBehaviour.OnAnimationEnter -= OnAnimationStateEnter;
+        AnimationStateBehaviour.OnAnimationExit -= OnAnimationStateExit;
     }
 
     // 旧来のメソッド。HTTP 経由での再生は、PlayAnimationByID / PlayAnimationByState を使用する前提。
@@ -229,13 +251,25 @@ public class AnimationHandler : MonoBehaviour {
     }
 
     private IEnumerator ForceStateAfterTransition(string stateKey, int layer, float delay) {
+        Debug.Log($"[AnimationHandler] ForceStateAfterTransition started for {stateKey}, delay={delay}s, current lock count={agiaLockCount}");
+        
         yield return new WaitForSeconds(delay);
+        
         if (animator != null) {
             animator.Play(stateKey, layer, 0f);
             currentState = stateKey;
             Debug.Log(string.Format(i18nMsg.LOG_FORCE_STATE, stateKey, layer));
+            
+            // seamlessアニメーションの場合、追加の監視を開始（ロック解除はMonitorAnimationCompletionに任せる）
+            StartCoroutine(MonitorAnimationCompletion(stateKey));
         }
-        UnlockAGIA();
+        else {
+            // animatorがnullの場合のみここでロック解除
+            Debug.Log($"[AnimationHandler] ForceStateAfterTransition unlocking AGIA for {stateKey} (animator is null), lock count before unlock={agiaLockCount}");
+            UnlockAGIA();
+        }
+        
+        Debug.Log($"[AnimationHandler] ForceStateAfterTransition completed for {stateKey}, lock count now={agiaLockCount}");
     }
 
     // 従来の IntBased 再生メソッド。HTTP 経由からはこちらが Idle, Other 用に呼ばれる。
@@ -303,19 +337,88 @@ public class AnimationHandler : MonoBehaviour {
         StartCoroutine(MonitorAnimationCompletion(stateName));
     }
 
+    // StateMachineBehaviourのイベントハンドラー
+    private void OnAnimationStateEnter(string stateName)
+    {
+        Debug.Log($"[AnimationHandler] Animation state entered: {stateName}");
+        currentState = stateName;
+    }
+
+    private void OnAnimationStateExit(string stateName)
+    {
+        Debug.Log($"[AnimationHandler] Animation state exited: {stateName}");
+        
+        // AGIAアニメーションの場合のみロックを解除
+        if (IsAgiaAnimationState(stateName))
+        {
+            Debug.Log($"[AnimationHandler] AGIA animation completed: {stateName}, unlocking AGIA");
+            UnlockAGIA();
+        }
+    }
+
+    /// <summary>
+    /// 指定されたステート名がAGIAアニメーションかどうかを判定
+    /// </summary>
+    private bool IsAgiaAnimationState(string stateName)
+    {
+        // AGIA関連のステート名パターンをチェック
+        return stateName.StartsWith("Idle_") || 
+               stateName.StartsWith("Other_") || 
+               stateName.StartsWith("Layer_") ||
+               stateName.StartsWith("ID_");
+    }
+
     private IEnumerator MonitorAnimationCompletion(string stateName)
     {
-        if (animator == null) yield break;
-        while (true)
+        Debug.Log($"[AnimationHandler] Starting animation completion monitoring for: {stateName}");
+        
+        if (animator == null) 
+        {
+            Debug.LogError($"[AnimationHandler] Animator is null, unlocking immediately for: {stateName}");
+            UnlockAGIA();
+            yield break;
+        }
+
+        // アニメーションが開始されるまで少し待つ
+        yield return new WaitForSeconds(0.1f);
+        
+        const float CHECK_INTERVAL = 1.5f; // 1.5秒間隔でチェック
+        const float TIMEOUT_SECONDS = 30f; // 30秒でタイムアウト
+        float timeoutCounter = 0f;
+        
+        while (timeoutCounter < TIMEOUT_SECONDS)
         {
             var info = animator.GetCurrentAnimatorStateInfo(0);
+            
+            // 現在のステート情報をログ出力
+            Debug.Log($"[AnimationHandler] Monitoring {stateName}: current={info.shortNameHash}, normalizedTime={info.normalizedTime:F2}, isTransition={animator.IsInTransition(0)}");
+            
+            // アニメーションが完了した場合
             if (!info.IsName(stateName))
+            {
+                Debug.Log($"[AnimationHandler] Animation state changed from {stateName}, unlocking AGIA");
                 break;
+            }
+            
+            // アニメーションが1回再生完了し、遷移中でない場合
             if (info.normalizedTime >= 1f && !animator.IsInTransition(0))
+            {
+                Debug.Log($"[AnimationHandler] Animation {stateName} completed (normalizedTime={info.normalizedTime:F2}), unlocking AGIA");
                 break;
-            yield return null;
+            }
+            
+            // 1.5秒待機
+            yield return new WaitForSeconds(CHECK_INTERVAL);
+            timeoutCounter += CHECK_INTERVAL;
         }
+        
+        if (timeoutCounter >= TIMEOUT_SECONDS)
+        {
+            Debug.LogWarning($"[AnimationHandler] Animation monitoring timed out for {stateName}, force unlocking AGIA");
+        }
+        
         UnlockAGIA();
+        Debug.Log($"[AnimationHandler] Animation monitoring completed for {stateName}, lock count now: {agiaLockCount}");
     }
 
     public string GetAnimationStatusJson() {
@@ -324,6 +427,8 @@ public class AnimationHandler : MonoBehaviour {
         statusInfo["availableStates"] = animationStates;
         statusInfo["isInitialized"] = isInitialized;
         statusInfo["isPlayingAGIA"] = IsPlayingAGIA;
+        statusInfo["agiaLockCount"] = agiaLockCount;
+        statusInfo["hasVrmaInstance"] = currentVrmaInstance != null;
         return SimpleJsonBuilder.Serialize(statusInfo);
     }
 
@@ -558,31 +663,36 @@ public class AnimationHandler : MonoBehaviour {
     private IEnumerator ResetAGIAAnimationWithSpringBoneProtection()
     {
         Debug.Log("🔄 Starting AGIA animation reset with SpringBone protection");
-        LockAGIA();
+        
+        // まず既存のロックを強制リセット
+        int oldLockCount = agiaLockCount;
+        ForceResetAgiaLock();
+        Debug.Log($"🔓 Force reset lock counter from {oldLockCount} to 0 before reset");
 
         // 1. SpringBone を事前に無効化
-        List<Vrm10SpringBoneJoint> disabledJoints = DisableAllSpringBones(vrmLoader.VrmInstance.gameObject);
+        List<Vrm10SpringBoneJoint> disabledJoints = DisableAllSpringBones(vrmLoader?.VrmInstance?.gameObject);
 
         // 2. VRMAアニメーション解除
-        if (vrmLoader.VrmInstance != null && vrmLoader.VrmInstance.Runtime != null) {
+        if (vrmLoader?.VrmInstance?.Runtime != null) {
             vrmLoader.VrmInstance.Runtime.VrmAnimation = null;
             Debug.Log(i18nMsg.LOG_VRMA_ANIMATION_RESET);
         }
         yield return null; // 1フレーム待機
 
         // 3. 穏やかなアニメータリセット（Rebindを避ける）
-        animator.runtimeAnimatorController = externalController;
-        yield return null; // アニメータコントローラ設定の反映を待つ
+        if (animator != null) {
+            animator.runtimeAnimatorController = externalController;
+            yield return null; // アニメータコントローラ設定の反映を待つ
 
-        // 4. デフォルトアニメーション開始
-        PlayAnimationByName("Idle_generic_01");
-        yield return new WaitForSeconds(0.2f); // アニメーション安定まで待機
+            // 4. デフォルトアニメーション開始
+            PlayAnimationByName("Idle_generic_01");
+            yield return new WaitForSeconds(0.2f); // アニメーション安定まで待機
+        }
 
         // 5. SpringBone復帰
         EnableSpringBones(disabledJoints);
         Debug.Log(i18nMsg.LOG_AGIA_RESET);
         Debug.Log("✅ AGIA reset completed with SpringBone protection");
-        UnlockAGIA();
     }
 
     // ===============================
