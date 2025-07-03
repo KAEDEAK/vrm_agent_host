@@ -55,7 +55,7 @@
 - **window**
   - 透過表示、ドラッグ許可、最前面化、位置・サイズ保持などウィンドウ挙動全般。`position` で初期配置を指定します。
 - **camera**
-  - `orthographic`、`orthographicSize`、`antiAliasing` などカメラの基本設定。
+  - `orthographic`、`orthographicSize`、`fieldOfView`、`antiAliasing` などカメラの基本設定。
 - **shadows**
   - シャドウの強さや解像度、バイアス設定。
 - **lipSync.bandRanges**

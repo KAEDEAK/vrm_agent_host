@@ -43,6 +43,7 @@
   "camera": {
     "orthographic":false,
     "orthographicSize":0.4,
+    "fieldOfView": 60,
     "antiAliasing": 4,
     "_antiAliasing_note": "0=Off, 2=2x MSAA, 4=4x MSAA, 8=8x MSAA"
   },
