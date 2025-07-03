@@ -38,6 +38,7 @@ public class WindowConfigData {
 public class CameraConfigData {
     public bool orthographic = false;
     public float orthographicSize = 0.4f;
+    public float fieldOfView = 60f;
     public int antiAliasing = 4;
 }
 
