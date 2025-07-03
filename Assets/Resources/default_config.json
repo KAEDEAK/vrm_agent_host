@@ -43,7 +43,6 @@
   "camera": {
     "orthographic":false,
     "orthographicSize":0.4,
-    "fieldOfView": 60,
     "antiAliasing": 4,
     "_antiAliasing_note": "0=Off, 2=2x MSAA, 4=4x MSAA, 8=8x MSAA"
   },
@@ -91,6 +90,10 @@
     "useDefault": true,
     "cullingMask": -1,
     "_directionalLightRendering_note": "If 'useDefault' is false, Rendering Layers will be set to 'Nothing' (0)."
+  },
+  "logging": {
+    "enableVerboseLogs": false,
+    "_enableVerboseLogs_note": "Enable detailed logging. Always enabled in Unity Editor regardless of this setting."
   },
   "animations": {
     "Idle": {

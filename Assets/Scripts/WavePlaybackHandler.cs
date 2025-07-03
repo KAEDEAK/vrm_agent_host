@@ -74,11 +74,11 @@ public class WavePlaybackHandler : MonoBehaviour {
         // Initialize spatial audio source for avatar head positioning
         InitializeSpatialAudioSource();
 
-        Debug.Log($"[WavePlaybackHandler] Initialized - Enabled: {enableWavePlayback}, Endpoint: {waveEndpoint}");
-        Debug.Log($"[WavePlaybackHandler] AudioChannelManager: {(audioChannelManager != null ? "Found" : "Not Found")}");
-        Debug.Log($"[WavePlaybackHandler] FFTAnalysisChannel: {(fftAnalysisChannel != null ? "Found" : "Not Found")}");
-        Debug.Log($"[WavePlaybackHandler] VRMLoader: {(vrmLoader != null ? "Found" : "Not Found")}");
-        Debug.Log($"[WavePlaybackHandler] StreamingClip: {(streamingClip != null ? $"Created ({streamingClip.length}s)" : "Failed to create")}");
+        DebugLogger.LogVerbose($"[WavePlaybackHandler] Initialized - Enabled: {enableWavePlayback}, Endpoint: {waveEndpoint}");
+        DebugLogger.LogVerbose($"[WavePlaybackHandler] AudioChannelManager: {(audioChannelManager != null ? "Found" : "Not Found")}");
+        DebugLogger.LogVerbose($"[WavePlaybackHandler] FFTAnalysisChannel: {(fftAnalysisChannel != null ? "Found" : "Not Found")}");
+        DebugLogger.LogVerbose($"[WavePlaybackHandler] VRMLoader: {(vrmLoader != null ? "Found" : "Not Found")}");
+        DebugLogger.LogVerbose($"[WavePlaybackHandler] StreamingClip: {(streamingClip != null ? $"Created ({streamingClip.length}s)" : "Failed to create")}");
     }
 
     /// <summary>
@@ -360,7 +360,7 @@ public class WavePlaybackHandler : MonoBehaviour {
             }
         }
 
-        Debug.Log($"[WavePlaybackHandler] Enqueued {samples.Length} samples, buffer size: {audioBuffer.Count}");
+        DebugLogger.LogVerbose($"[WavePlaybackHandler] Enqueued {samples.Length} samples, buffer size: {audioBuffer.Count}");
     }
 
     /// <summary>

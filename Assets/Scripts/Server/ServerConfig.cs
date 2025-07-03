@@ -105,6 +105,7 @@ public class ServerConfig {
     [SerializeField] private WindowConfigData window = new WindowConfigData();
     public WindowConfigData Window => window;
     public LipSyncConfig lipSync = new LipSyncConfig();
+    public LoggingConfig logging = new LoggingConfig();
     public List<string> outputFilters = new List<string>();
 
     // --- アニメーションマッピング ---
@@ -248,6 +249,7 @@ public class ServerConfig {
             window = data.window;
             camera = data.camera;
             lipSync = data.lipSync;
+            logging = data.logging ?? new LoggingConfig();
             outputFilters = data.outputFilters;
         }
         catch (Exception ex) {
@@ -257,6 +259,8 @@ public class ServerConfig {
 
     public void ReloadConfig() {
         LoadConfigForInstance();
+        // Refresh DebugLogger settings after config reload
+        DebugLogger.RefreshSettings();
     }
 
 

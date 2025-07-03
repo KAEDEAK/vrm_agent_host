@@ -38,7 +38,6 @@ public class WindowConfigData {
 public class CameraConfigData {
     public bool orthographic = false;
     public float orthographicSize = 0.4f;
-    public float fieldOfView = 60f;
     public int antiAliasing = 4;
 }
 
@@ -51,6 +50,11 @@ public class BandRangeEntry {
 [Serializable]
 public class LipSyncConfig {
     public List<BandRangeEntry> bandRanges = new List<BandRangeEntry>();
+}
+
+[Serializable]
+public class LoggingConfig {
+    public bool enableVerboseLogs = false;
 }
 
 [Serializable]
@@ -79,6 +83,7 @@ public class ServerConfigData {
     public WindowConfigData window = new WindowConfigData();
     public CameraConfigData camera = new CameraConfigData();
     public LipSyncConfig lipSync = new LipSyncConfig();
+    public LoggingConfig logging = new LoggingConfig();
 
     public List<string> outputFilters = new List<string>();
 }

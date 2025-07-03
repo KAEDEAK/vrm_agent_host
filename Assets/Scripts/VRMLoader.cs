@@ -117,7 +117,7 @@ public class VRMLoader : MonoBehaviour {
             mainCamera.orthographicSize = config.Camera.orthographicSize;
         }
         else {
-            mainCamera.fieldOfView = config.Camera.fieldOfView;
+            mainCamera.fieldOfView = 60f;
         }
         mainCamera.nearClipPlane = 0.02f;
         mainCamera.farClipPlane = 1000f;

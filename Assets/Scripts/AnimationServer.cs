@@ -139,7 +139,7 @@ public class AnimationServer : MonoBehaviour {
         // 初期化は ServerConfig の値を反映
         Application.targetFrameRate = targetFramerate;
         QualitySettings.vSyncCount = vsync ? 1 : 0;
-        Debug.Log($"FrameRate: {Application.targetFrameRate}, VSync: {(vsync ? "On" : "Off")}");
+        DebugLogger.LogImportant($"FrameRate: {Application.targetFrameRate}, VSync: {(vsync ? "On" : "Off")}");
 
         // 各コンポーネント取得
         var animationHandler = UnityEngine.Object.FindAnyObjectByType<AnimationHandler>();
@@ -228,7 +228,7 @@ public class AnimationServer : MonoBehaviour {
         vsync = config.vsync;
         targetFramerate = config.targetFramerate;
 
-        Debug.Log($"[DEBUG] listenLocalhostOnly = {config.listenLocalhostOnly}");
+        DebugLogger.LogVerbose($"[DEBUG] listenLocalhostOnly = {config.listenLocalhostOnly}");
     }
 
     private void StartServer() {
@@ -244,7 +244,7 @@ public class AnimationServer : MonoBehaviour {
             // HTTP
             if (useHttp) {
                 httpListener = new HttpListener();
-                Debug.Log($"StartServer listenLocalhostOnly {listenLocalhostOnly}");
+                DebugLogger.LogVerbose($"StartServer listenLocalhostOnly {listenLocalhostOnly}");
 
                 if (listenLocalhostOnly) {
                     // Firefoxを考慮し http://+:{port}/ を使いながら、実質ローカル用
