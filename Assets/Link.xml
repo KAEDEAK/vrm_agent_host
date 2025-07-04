@@ -1,0 +1,11 @@
+<linker>
+  <assembly fullname="VRM10">
+    <type fullname="*" preserve="all"/>
+  </assembly>
+  <assembly fullname="UniVRM10">
+    <type fullname="*" preserve="all"/>
+  </assembly>
+  <assembly fullname="UnityEngine.Shader">
+    <type fullname="*" preserve="all"/>
+  </assembly>
+</linker>
