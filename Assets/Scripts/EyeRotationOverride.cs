@@ -5,6 +5,8 @@ using System.Collections;
 /// アニメーションシステムの後で目の回転を強制的に上書きするコンポーネント
 /// VRMモデルに自動的にアタッチされます
 /// </summary>
+// Ensure this component overrides after VRM runtime processing
+[DefaultExecutionOrder(20000)]
 public class EyeRotationOverride : MonoBehaviour {
     private Animator animator;
     private Transform leftEye;
