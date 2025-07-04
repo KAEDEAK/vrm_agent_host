@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Net;
 using UnityEngine;
 using System.IO;
+using VRM;
 
 public class VrmCommandHandler : HttpCommandHandlerBase {
     private VRMLoader _vrmLoader;
@@ -14,7 +15,7 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
     private static readonly string[] AllowedCommands = {
         "load", "setLoc", "getLoc", "getRot", "setRot",
         "move", "rotate", "stop_move", "stop_rotate",
-        "look", "lookAtBone", "lookAtCamera",
+        "look", "lookAtBone", "lookAtCamera", "lookAtHead",
         "debug_lock_status", "debug_force_unlock"
     };
 
@@ -551,6 +552,45 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                     }
                     responseData.status = 200;
                     responseData.message = "lookAtCamera applied";
+                    break;
+                }
+            case "lookAtHead": {
+                    string enableParam = GetQueryParam(query, "enable", null);
+                    if (string.IsNullOrEmpty(enableParam)) {
+                        responseData.status = 400;
+                        responseData.message = i18nMsg.ERROR_ENABLE_PARAM_MISSING;
+                        break;
+                    }
+                    if (!bool.TryParse(enableParam, out bool enable)) {
+                        responseData.status = 400;
+                        responseData.message = i18nMsg.ERROR_ENABLE_PARAM_INVALID;
+                        break;
+                    }
+
+                    var lookAtHead = vrmInstanceObj.GetComponent<VRMLookAtHead>();
+                    if (lookAtHead != null) {
+                        lookAtHead.enabled = enable;
+                        Debug.Log($"[VrmCmd] VRMLookAtHead set to {enable}");
+                    }
+
+                    var lookAtBoneApplier = vrmInstanceObj.GetComponent<VRMLookAtBoneApplyer>();
+                    if (lookAtBoneApplier != null) {
+                        lookAtBoneApplier.enabled = enable;
+                        Debug.Log($"[VrmCmd] VRMLookAtBoneApplyer set to {enable}");
+                    }
+
+                    var allLookAtComponents = vrmInstanceObj.GetComponentsInChildren<Component>();
+                    foreach (var component in allLookAtComponents) {
+                        var typeName = component.GetType().Name;
+                        if (typeName.Contains("LookAt") && !typeName.Contains("Transform")) {
+                            if (component is Behaviour behaviour) {
+                                behaviour.enabled = enable;
+                            }
+                        }
+                    }
+
+                    responseData.status = 200;
+                    responseData.message = $"lookAtHead {(enable ? "enabled" : "disabled")}";
                     break;
                 }
             default: {
