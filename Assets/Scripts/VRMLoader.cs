@@ -68,6 +68,11 @@ public class VRMLoader : MonoBehaviour {
             if (lookAtHead != null)
             {
                 lookAtHead.UpdateType = VRM.UpdateType.LateUpdate;
+                if (Camera.main != null)
+                {
+                    lookAtHead.Target = Camera.main.transform;
+                    Debug.Log("[VRMLoader] VRMLookAtHead target set to main camera");
+                }
                 Debug.Log("[VRMLoader] VRMLookAtHead UpdateType set to LateUpdate");
             }
 

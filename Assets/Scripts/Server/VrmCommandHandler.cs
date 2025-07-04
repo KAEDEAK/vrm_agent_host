@@ -15,7 +15,7 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
     private static readonly string[] AllowedCommands = {
         "load", "setLoc", "getLoc", "getRot", "setRot",
         "move", "rotate", "stop_move", "stop_rotate",
-        "look", "lookAtBone", "lookAtCamera", "lookAtHead",
+        "lookAtHead",
         "debug_lock_status", "debug_force_unlock"
     };
 
@@ -366,139 +366,11 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                     }
                     break;
                 }
-            case "look": {
-                    string mode = GetQueryParam(query, "mode", "deg");
-                    string yawStr = GetQueryParam(query, "yaw", null);
-                    string pitchStr = GetQueryParam(query, "pitch", null);
-                    string eyeSel = GetQueryParam(query, "eye", "both").ToLowerInvariant();
-                    if (!(eyeSel == "both" || eyeSel == "left" || eyeSel == "right")) {
-                        responseData.status = 400;
-                        responseData.message = "eye パラメータは both/left/right で指定してください。";
-                        break;
-                    }
-                    if (yawStr == null || pitchStr == null) {
-                        responseData.status = 400;
-                        responseData.message = "yaw/pitch パラメータが必要です。";
-                        break;
-                    }
-                    if (!float.TryParse(yawStr, out float rawYaw) ||
-                        !float.TryParse(pitchStr, out float rawPitch)) {
-                        responseData.status = 400;
-                        responseData.message = "数値パラメータの解析に失敗しました。";
-                        break;
-                    }
-                    float yawDeg;
-                    float pitchDeg;
-                    switch (mode) {
-                        case "rad":
-                            yawDeg = rawYaw * Mathf.Rad2Deg;
-                            pitchDeg = rawPitch * Mathf.Rad2Deg;
-                            break;
-                        case "norm":
-                            const float maxDegNorm = 45f;
-                            yawDeg = rawYaw * maxDegNorm;
-                            pitchDeg = rawPitch * maxDegNorm;
-                            break;
-                        default:
-                            yawDeg = rawYaw;
-                            pitchDeg = rawPitch;
-                            break;
-                    }
-
-                    EyeRotationOverride.SetGlobalLookRotation(yawDeg, pitchDeg, eyeSel);
-                    responseData.status = 200;
-                    responseData.message = "look applied";
-                    break;
-                }
-            case "lookAtBone": {
-                    string boneName = GetQueryParam(query, "bone", null);
-                    if (string.IsNullOrEmpty(boneName)) {
-                        responseData.status = 400;
-                        responseData.message = "bone パラメータが必要です。";
-                        break;
-                    }
-                    string mode = GetQueryParam(query, "mode", "deg");
-                    string eyeSel = GetQueryParam(query, "eye", "both").ToLowerInvariant();
-                    if (!(eyeSel == "both" || eyeSel == "left" || eyeSel == "right")) {
-                        responseData.status = 400;
-                        responseData.message = "eye パラメータは both/left/right で指定してください。";
-                        break;
-                    }
-                    if (!Enum.TryParse<HumanBodyBones>(boneName, out var boneEnum)) {
-                        responseData.status = 400;
-                        responseData.message = "無効な bone 名です。";
-                        break;
-                    }
-                    var animator = vrmInstanceObj.GetComponent<Animator>();
-                    if (animator == null) {
-                        responseData.status = 500;
-                        responseData.message = "Animator not found.";
-                        break;
-                    }
-                    var targetTransform = animator.GetBoneTransform(boneEnum);
-                    if (targetTransform == null) {
-                        responseData.status = 500;
-                        responseData.message = "Bone transform not found.";
-                        break;
-                    }
-                    Vector3 localDir = vrmInstanceObj.transform.InverseTransformPoint(targetTransform.position).normalized;
-                    float yawDeg = Mathf.Atan2(localDir.x, localDir.z) * Mathf.Rad2Deg;
-                    float pitchDeg = Mathf.Asin(localDir.y) * Mathf.Rad2Deg;
-                    switch (mode) {
-                        case "rad":
-                            yawDeg = Mathf.Atan2(localDir.x, localDir.z) * Mathf.Rad2Deg;
-                            pitchDeg = Mathf.Asin(localDir.y) * Mathf.Rad2Deg;
-                            break;
-                        case "norm":
-                            const float maxDegNormBone = 45f;
-                            yawDeg = Mathf.Clamp(yawDeg, -maxDegNormBone, maxDegNormBone);
-                            pitchDeg = Mathf.Clamp(pitchDeg, -maxDegNormBone, maxDegNormBone);
-                            break;
-                        default:
-                            break;
-                    }
-                    EyeRotationOverride.SetGlobalLookRotation(yawDeg, pitchDeg, eyeSel);
-                    responseData.status = 200;
-                    responseData.message = "lookAtBone applied";
-                    break;
-                }
+            case "look":
+            case "lookAtBone":
             case "lookAtCamera": {
-                    string mode = GetQueryParam(query, "mode", "deg");
-                    string eyeSel = GetQueryParam(query, "eye", "both").ToLowerInvariant();
-                    if (!(eyeSel == "both" || eyeSel == "left" || eyeSel == "right")) {
-                        responseData.status = 400;
-                        responseData.message = "eye パラメータは both/left/right で指定してください。";
-                        break;
-                    }
-                    var camera = Camera.main;
-                    if (camera == null) {
-                        responseData.status = 500;
-                        responseData.message = "Main Camera not found.";
-                        break;
-                    }
-                    var animator = vrmInstanceObj.GetComponent<Animator>();
-                    if (animator == null) {
-                        responseData.status = 500;
-                        responseData.message = "Animator not found.";
-                        break;
-                    }
-                    Vector3 localDir = vrmInstanceObj.transform.InverseTransformPoint(camera.transform.position).normalized;
-                    float yawDeg = Mathf.Atan2(localDir.x, localDir.z) * Mathf.Rad2Deg;
-                    float pitchDeg = Mathf.Asin(localDir.y) * Mathf.Rad2Deg;
-                    switch (mode) {
-                        case "rad":
-                            break;
-                        case "norm":
-                            const float maxDegNormCam = 45f;
-                            yawDeg = Mathf.Clamp(yawDeg, -maxDegNormCam, maxDegNormCam);
-                            pitchDeg = Mathf.Clamp(pitchDeg, -maxDegNormCam, maxDegNormCam);
-                            break;
-                        default:
-                            break;
-                    }
-                    EyeRotationOverride.SetGlobalLookRotation(yawDeg, pitchDeg, eyeSel);
-                    responseData.status = 200;
-                    responseData.message = "lookAtCamera applied";
+                    responseData.status = 400;
+                    responseData.message = string.Format(i18nMsg.ERROR_INVALID_VRM_CMD, cmd);
                     break;
                 }
             case "lookAtHead": {
