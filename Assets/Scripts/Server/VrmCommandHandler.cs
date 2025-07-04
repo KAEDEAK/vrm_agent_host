@@ -387,46 +387,25 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                         responseData.message = "数値パラメータの解析に失敗しました。";
                         break;
                     }
-                    float yawRad;
-                    float pitchRad;
+                    float yawDeg;
+                    float pitchDeg;
                     switch (mode) {
                         case "rad":
-                            yawRad = rawYaw;
-                            pitchRad = rawPitch;
+                            yawDeg = rawYaw * Mathf.Rad2Deg;
+                            pitchDeg = rawPitch * Mathf.Rad2Deg;
                             break;
                         case "norm":
                             const float maxDegNorm = 45f;
-                            yawRad = rawYaw * maxDegNorm * Mathf.Deg2Rad;
-                            pitchRad = rawPitch * maxDegNorm * Mathf.Deg2Rad;
+                            yawDeg = rawYaw * maxDegNorm;
+                            pitchDeg = rawPitch * maxDegNorm;
                             break;
                         default:
-                            yawRad = rawYaw * Mathf.Deg2Rad;
-                            pitchRad = rawPitch * Mathf.Deg2Rad;
+                            yawDeg = rawYaw;
+                            pitchDeg = rawPitch;
                             break;
                     }
 
-                    var animator = vrmInstanceObj.GetComponent<Animator>();
-                    if (animator == null) {
-                        responseData.status = 500;
-                        responseData.message = "Animator not found.";
-                        break;
-                    }
-                    var leftEye = animator.GetBoneTransform(HumanBodyBones.LeftEye);
-                    var rightEye = animator.GetBoneTransform(HumanBodyBones.RightEye);
-                    if (leftEye == null || rightEye == null) {
-                        responseData.status = 500;
-                        responseData.message = "Eye bones not found.";
-                        break;
-                    }
-                    Quaternion rot = Quaternion.Euler(pitchRad * Mathf.Rad2Deg,
-                                                   yawRad * Mathf.Rad2Deg,
-                                                   0f);
-                    if (eyeSel == "both" || eyeSel == "left") {
-                        leftEye.localRotation = rot;
-                    }
-                    if (eyeSel == "both" || eyeSel == "right") {
-                        rightEye.localRotation = rot;
-                    }
+                    EyeRotationOverride.SetGlobalLookRotation(yawDeg, pitchDeg, eyeSel);
                     responseData.status = 200;
                     responseData.message = "look applied";
                     break;
@@ -462,38 +441,23 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                         responseData.message = "Bone transform not found.";
                         break;
                     }
-                    var leftEye = animator.GetBoneTransform(HumanBodyBones.LeftEye);
-                    var rightEye = animator.GetBoneTransform(HumanBodyBones.RightEye);
-                    if (leftEye == null || rightEye == null) {
-                        responseData.status = 500;
-                        responseData.message = "Eye bones not found.";
-                        break;
-                    }
                     Vector3 localDir = vrmInstanceObj.transform.InverseTransformPoint(targetTransform.position).normalized;
-                    float yawRad = Mathf.Atan2(localDir.x, localDir.z);
-                    float pitchRad = Mathf.Asin(localDir.y);
+                    float yawDeg = Mathf.Atan2(localDir.x, localDir.z) * Mathf.Rad2Deg;
+                    float pitchDeg = Mathf.Asin(localDir.y) * Mathf.Rad2Deg;
                     switch (mode) {
                         case "rad":
+                            yawDeg = Mathf.Atan2(localDir.x, localDir.z) * Mathf.Rad2Deg;
+                            pitchDeg = Mathf.Asin(localDir.y) * Mathf.Rad2Deg;
                             break;
                         case "norm":
                             const float maxDegNormBone = 45f;
-                            yawRad = yawRad * maxDegNormBone * Mathf.Deg2Rad;
-                            pitchRad = pitchRad * maxDegNormBone * Mathf.Deg2Rad;
+                            yawDeg = Mathf.Clamp(yawDeg, -maxDegNormBone, maxDegNormBone);
+                            pitchDeg = Mathf.Clamp(pitchDeg, -maxDegNormBone, maxDegNormBone);
                             break;
                         default:
-                            yawRad = yawRad * Mathf.Rad2Deg * Mathf.Deg2Rad;
-                            pitchRad = pitchRad * Mathf.Rad2Deg * Mathf.Deg2Rad;
                             break;
                     }
-                    Quaternion eyeRot = Quaternion.Euler(pitchRad * Mathf.Rad2Deg,
-                                                      yawRad * Mathf.Rad2Deg,
-                                                      0f);
-                    if (eyeSel == "both" || eyeSel == "left") {
-                        leftEye.localRotation = eyeRot;
-                    }
-                    if (eyeSel == "both" || eyeSel == "right") {
-                        rightEye.localRotation = eyeRot;
-                    }
+                    EyeRotationOverride.SetGlobalLookRotation(yawDeg, pitchDeg, eyeSel);
                     responseData.status = 200;
                     responseData.message = "lookAtBone applied";
                     break;
@@ -518,38 +482,21 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                         responseData.message = "Animator not found.";
                         break;
                     }
-                    var leftEye = animator.GetBoneTransform(HumanBodyBones.LeftEye);
-                    var rightEye = animator.GetBoneTransform(HumanBodyBones.RightEye);
-                    if (leftEye == null || rightEye == null) {
-                        responseData.status = 500;
-                        responseData.message = "Eye bones not found.";
-                        break;
-                    }
                     Vector3 localDir = vrmInstanceObj.transform.InverseTransformPoint(camera.transform.position).normalized;
-                    float yawRad = Mathf.Atan2(localDir.x, localDir.z);
-                    float pitchRad = Mathf.Asin(localDir.y);
+                    float yawDeg = Mathf.Atan2(localDir.x, localDir.z) * Mathf.Rad2Deg;
+                    float pitchDeg = Mathf.Asin(localDir.y) * Mathf.Rad2Deg;
                     switch (mode) {
                         case "rad":
                             break;
                         case "norm":
                             const float maxDegNormCam = 45f;
-                            yawRad = yawRad * maxDegNormCam * Mathf.Deg2Rad;
-                            pitchRad = pitchRad * maxDegNormCam * Mathf.Deg2Rad;
+                            yawDeg = Mathf.Clamp(yawDeg, -maxDegNormCam, maxDegNormCam);
+                            pitchDeg = Mathf.Clamp(pitchDeg, -maxDegNormCam, maxDegNormCam);
                             break;
                         default:
-                            yawRad = yawRad * Mathf.Rad2Deg * Mathf.Deg2Rad;
-                            pitchRad = pitchRad * Mathf.Rad2Deg * Mathf.Deg2Rad;
                             break;
                     }
-                    Quaternion camRot = Quaternion.Euler(pitchRad * Mathf.Rad2Deg,
-                                                     yawRad * Mathf.Rad2Deg,
-                                                     0f);
-                    if (eyeSel == "both" || eyeSel == "left") {
-                        leftEye.localRotation = camRot;
-                    }
-                    if (eyeSel == "both" || eyeSel == "right") {
-                        rightEye.localRotation = camRot;
-                    }
+                    EyeRotationOverride.SetGlobalLookRotation(yawDeg, pitchDeg, eyeSel);
                     responseData.status = 200;
                     responseData.message = "lookAtCamera applied";
                     break;
