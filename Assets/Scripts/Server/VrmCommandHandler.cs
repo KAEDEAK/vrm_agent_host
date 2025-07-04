@@ -438,6 +438,12 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                         break;
                     }
                     string mode = GetQueryParam(query, "mode", "deg");
+                    string eyeSel = GetQueryParam(query, "eye", "both").ToLowerInvariant();
+                    if (!(eyeSel == "both" || eyeSel == "left" || eyeSel == "right")) {
+                        responseData.status = 400;
+                        responseData.message = "eye パラメータは both/left/right で指定してください。";
+                        break;
+                    }
                     if (!Enum.TryParse<HumanBodyBones>(boneName, out var boneEnum)) {
                         responseData.status = 400;
                         responseData.message = "無効な bone 名です。";
