@@ -45,6 +45,9 @@
     "orthographicSize":0.4,
     "fieldOfView":60,
     "antiAliasing": 4,
+    "headTracking": true,
+    "position": {"x":0, "y":1, "z":-10},
+    "rotation": {"x":0, "y":0, "z":0},
     "_antiAliasing_note": "0=Off, 2=2x MSAA, 4=4x MSAA, 8=8x MSAA"
   },
   "fileControl":[
