@@ -104,6 +104,7 @@ public class AnimationServer : MonoBehaviour {
 #endif
         Instance = this;
         Application.runInBackground = true;
+        AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
         // Play mode でのみ設定をロード
         if (Application.isPlaying) {
             LoadConfig();  // ServerConfig.Instance から設定をロード
@@ -176,6 +177,10 @@ public class AnimationServer : MonoBehaviour {
         StopServer();
     }
 
+    private void OnProcessExit(object sender, EventArgs e) {
+        StopServer();
+    }
+
     private void TrySaveWindowState() {
         var win = GameObject.FindFirstObjectByType<TransparentWindow>();
         if (win != null) {
@@ -185,6 +190,7 @@ public class AnimationServer : MonoBehaviour {
 
     // ★ 修正：もともと "listenerThread" を見てたが無いので httpListener / httpsListener だけチェック
     private void OnDestroy() {
+        AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
         if (httpListener != null || httpsListener != null) {
             Debug.LogWarning("🧹 OnDestroy: Server still running!? Trying to stop...");
             StopServer();
@@ -269,6 +275,7 @@ public class AnimationServer : MonoBehaviour {
 
                 httpListener.Start();
                 httpThread = new Thread(() => HandleRequestsThread(httpListener));
+                httpThread.IsBackground = true;
                 httpThread.Start();
             }
 
@@ -299,6 +306,7 @@ public class AnimationServer : MonoBehaviour {
 
                 httpsListener.Start();
                 httpsThread = new Thread(() => HandleRequestsThread(httpsListener));
+                httpsThread.IsBackground = true;
                 httpsThread.Start();
             }
 
