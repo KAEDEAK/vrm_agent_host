@@ -18,15 +18,8 @@
           { "id": "label.orthoSize", "txt": "Size:" },
 
           { "id": "section.look.title", "txt": "Eye Control" },
-          { "id": "look.look.title", "txt": "[SET] Direct Look" },
-          { "id": "look.bone.title", "txt": "[SET] Look At Bone" },
-          { "id": "look.camera.title", "txt": "[SET] Look At Camera" },
+          
           { "id": "look.head.title", "txt": "[SET] Toggle LookAtHead" },
-          { "id": "label.yaw", "txt": "Yaw:" },
-          { "id": "label.pitch", "txt": "Pitch:" },
-          { "id": "label.mode", "txt": "Mode:" },
-          { "id": "label.eye", "txt": "Eye:" },
-          { "id": "label.bone", "txt": "Bone:" },
           { "id": "label.lookathead", "txt": "LookAtHead:" },
   
           { "id": "section.lipsync.title", "txt": "Audio Reactive Lip Sync" },
@@ -128,15 +121,8 @@
           { "id": "label.orthoSize", "txt": "サイズ：" },
 
           { "id": "section.look.title", "txt": "視線制御" },
-          { "id": "look.look.title", "txt": "[SET] 視線角度指定 (look)" },
-          { "id": "look.bone.title", "txt": "[SET] ボーンを注視 (lookAtBone)" },
-          { "id": "look.camera.title", "txt": "[SET] カメラ注視 (lookAtCamera)" },
+          
           { "id": "look.head.title", "txt": "[SET] LookAtHead 切り替え" },
-          { "id": "label.yaw", "txt": "Yaw:" },
-          { "id": "label.pitch", "txt": "Pitch:" },
-          { "id": "label.mode", "txt": "モード：" },
-          { "id": "label.eye", "txt": "目：" },
-          { "id": "label.bone", "txt": "ボーン：" },
           { "id": "label.lookathead", "txt": "LookAtHead：" },
   
           { "id": "section.lipsync.title", "txt": "Audio Reactive Lip Sync" },
