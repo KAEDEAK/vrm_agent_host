@@ -127,7 +127,7 @@
 
           { "id": "section.look.title", "txt": "視線制御" },
           { "id": "look.look.title", "txt": "[SET] 視線角度指定 (look)" },
-          { "id": "look.bone.title", "txt": "[SET] 骨を注視 (lookAtBone)" },
+          { "id": "look.bone.title", "txt": "[SET] ボーンを注視 (lookAtBone)" },
           { "id": "look.camera.title", "txt": "[SET] カメラ注視 (lookAtCamera)" },
           { "id": "label.yaw", "txt": "Yaw:" },
           { "id": "label.pitch", "txt": "Pitch:" },
