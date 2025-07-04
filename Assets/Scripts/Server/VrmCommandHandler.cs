@@ -515,12 +515,24 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                     }
 
                     var lookAtHead = vrmInstanceObj.GetComponent<VRMLookAtHead>();
+                    if (enable && lookAtHead == null) {
+                        lookAtHead = vrmInstanceObj.AddComponent<VRMLookAtHead>();
+                        Debug.Log("[VrmCmd] VRMLookAtHead component added dynamically");
+                    }
                     if (lookAtHead != null) {
                         lookAtHead.enabled = enable;
                         Debug.Log($"[VrmCmd] VRMLookAtHead set to {enable}");
                     }
 
                     var lookAtBoneApplier = vrmInstanceObj.GetComponent<VRMLookAtBoneApplyer>();
+                    if (enable && lookAtBoneApplier == null) {
+                        lookAtBoneApplier = vrmInstanceObj.AddComponent<VRMLookAtBoneApplyer>();
+                        if (vrmInstanceObj.TryGetComponent<Animator>(out var animator)) {
+                            lookAtBoneApplier.LeftEye = OffsetOnTransform.Create(animator.GetBoneTransform(HumanBodyBones.LeftEye));
+                            lookAtBoneApplier.RightEye = OffsetOnTransform.Create(animator.GetBoneTransform(HumanBodyBones.RightEye));
+                        }
+                        Debug.Log("[VrmCmd] VRMLookAtBoneApplyer dynamically added");
+                    }
                     if (lookAtBoneApplier != null) {
                         lookAtBoneApplier.enabled = enable;
                         Debug.Log($"[VrmCmd] VRMLookAtBoneApplyer set to {enable}");
