@@ -57,6 +57,12 @@ public class VRMLoader : MonoBehaviour {
             LoadedModel = VrmInstance.gameObject;
             LoadedModel.name = "LoadedVRMModel";
 
+            if (LoadedModel.GetComponent<EyeRotationOverride>() == null)
+            {
+                LoadedModel.AddComponent<EyeRotationOverride>();
+                Debug.Log("[VRMLoader] EyeRotationOverride added to loaded model");
+            }
+
             EnableUpdateWhenOffscreen(LoadedModel);
             AdjustCamera(LoadedModel);
 
