@@ -5,6 +5,10 @@ using UnityEngine;
 
 namespace VRM
 {
+    /// <summary>
+    /// <see cref="VRMLookAtHead"/> から通知される Yaw/Pitch を使用し、
+    /// ブレンドシェイプ値へ変換して視線表情を制御します。
+    /// </summary>
     public class VRMLookAtBlendShapeApplyer : MonoBehaviour, IVRMComponent
     {
         public bool DrawGizmo = true;
@@ -45,6 +49,9 @@ namespace VRM
         VRMLookAtHead m_head;
         VRMBlendShapeProxy m_proxy;
 
+        /// <summary>
+        /// YawPitchChanged イベントを購読して初期化します。
+        /// </summary>
         private void Start()
         {
             m_head = this.GetComponentOrNull<VRMLookAtHead>();

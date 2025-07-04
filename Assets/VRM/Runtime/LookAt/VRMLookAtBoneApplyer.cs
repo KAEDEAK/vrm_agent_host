@@ -5,6 +5,10 @@ using UnityEngine;
 
 namespace VRM
 {
+    /// <summary>
+    /// <see cref="VRMLookAtHead"/> から通知される Yaw/Pitch を受け取り、
+    /// 左右の眼ボーンへ回転として適用します。
+    /// </summary>
     public class VRMLookAtBoneApplyer : MonoBehaviour, IVRMComponent
     {
         public bool DrawGizmo = false;
@@ -52,6 +56,10 @@ namespace VRM
 
         VRMLookAtHead m_head;
 
+        /// <summary>
+        /// VRMLookAtHead の <see cref="VRMLookAtHead.YawPitchChanged"/> を購読
+        /// し、初期化します。
+        /// </summary>
         void Start()
         {
             m_head = this.GetComponentOrNull<VRMLookAtHead>();

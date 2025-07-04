@@ -214,6 +214,73 @@ public class LookAtBoneCommandHandler : HttpCommandHandlerBase
 }
 ```
 
+## [Implemented] VRMLookAtHead と Applyer の連携
+VRMLookAtHead はターゲットのワールド座標を頭ボーンのローカル空間に変換し、そこから Yaw と Pitch を算出して `YawPitchChanged` イベントを発火します。
+
+```csharp
+public void LookWorldPosition()
+{
+    if (Target == null) return;
+    float yaw;
+    float pitch;
+    LookWorldPosition(Target.position, out yaw, out pitch);
+}
+
+public void LookWorldPosition(Vector3 targetPosition, out float yaw, out float pitch)
+{
+    var localPos = Head.worldToLocalMatrix.MultiplyPoint(targetPosition);
+    Matrix4x4.identity.CalcYawPitch(localPos, out yaw, out pitch);
+    RaiseYawPitchChanged(yaw, pitch);
+}
+```
+
+VRMLookAtBoneApplyer はこのイベントを購読し、左右の眼ボーンへ回転を適用します。
+
+```csharp
+void Start()
+{
+    m_head = GetComponentOrNull<VRMLookAtHead>();
+    if (m_head == null)
+    {
+        enabled = false;
+        Debug.LogError("[VRMLookAtBoneApplyer]VRMLookAtHead not found");
+        return;
+    }
+    m_head.YawPitchChanged += ApplyRotations;
+    LeftEye.Setup();
+    RightEye.Setup();
+}
+
+void ApplyRotations(float yaw, float pitch)
+{
+    float leftYaw, rightYaw;
+    if (yaw < 0)
+    {
+        leftYaw  = -HorizontalOuter.Map(-yaw);
+        rightYaw = -HorizontalInner.Map(-yaw);
+    }
+    else
+    {
+        rightYaw = HorizontalOuter.Map(yaw);
+        leftYaw  = HorizontalInner.Map(yaw);
+    }
+
+    if (pitch < 0)
+        pitch = -VerticalDown.Map(-pitch);
+    else
+        pitch =  VerticalUp.Map(pitch);
+
+    if (LeftEye.Transform != null && RightEye.Transform != null)
+    {
+        LeftEye.Transform.rotation  = LeftEye.InitialWorldMatrix.ExtractRotation()
+                                * Matrix4x4.identity.YawPitchRotation(leftYaw, pitch);
+        RightEye.Transform.rotation = RightEye.InitialWorldMatrix.ExtractRotation()
+                                * Matrix4x4.identity.YawPitchRotation(rightYaw, pitch);
+    }
+}
+```
+
+同様に VRMLookAtBlendShapeApplyer では受け取った Yaw/Pitch をブレンドシェイプ値へ変換し、表情に反映します。
 ## [Implemented] テスト & 検証
 - 単体テスト: パラメータパース、エラーハンドリング
 - 結合テスト: HTTP リクエスト → アバター回転確認

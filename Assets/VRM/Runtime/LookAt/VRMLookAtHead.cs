@@ -14,11 +14,9 @@ namespace VRM
     }
 
     /// <summary>
-    /// Headボーンローカルで目標物のYaw, Pitchを求めて目線に適用する
-    /// 
-    /// * VRMLookAtBoneApplyer
-    /// * VRMLookAtBlendShapeApplyer
-    /// 
+    /// Headボーンローカルで注視点(Target)への Yaw/Pitch を算出し、
+    /// <see cref="YawPitchChanged"/> イベントを通じて VRMLookAtBoneApplyer
+    /// または VRMLookAtBlendShapeApplyer へ通知します。
     /// </summary>
     public class VRMLookAtHead : MonoBehaviour, IVRMComponent
     {
@@ -202,6 +200,10 @@ namespace VRM
             }
         }
 
+        /// <summary>
+        /// Target のワールド座標から Yaw/Pitch を計算して <see cref="YawPitchChanged"/>
+        /// を発火します。
+        /// </summary>
         public void LookWorldPosition()
         {
             if (Target == null) return;
@@ -210,6 +212,10 @@ namespace VRM
             LookWorldPosition(Target.position, out yaw, out pitch);
         }
 
+        /// <summary>
+        /// 指定ワールド座標を Head ボーンのローカル空間へ変換し、Yaw/Pitch
+        /// を算出して <see cref="YawPitchChanged"/> を発火します。
+        /// </summary>
         public void LookWorldPosition(Vector3 targetPosition, out float yaw, out float pitch)
         {
             var localPosition = Head.worldToLocalMatrix.MultiplyPoint(targetPosition);
