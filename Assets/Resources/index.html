@@ -614,7 +614,27 @@
           </div>
         </div>
         <div>
-          <textarea id="lookAtCameraResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+      <textarea id="lookAtCameraResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
+      </div>
+      </div>
+
+      <!-- toggle LookAtHead (SET) -->
+      <div class="subsection set-command">
+        <h3 data-locale="look.head.title">Toggle LookAtHead (SET)</h3>
+        <div class="command">
+          <a id="lookAtHeadLink" href="/?target=vrm&cmd=lookAtHead&enable=true" target="_blank">
+            /?target=vrm&cmd=lookAtHead&enable=true
+          </a>
+          <button id="lookAtHeadBtn" class="sendButton" data-locale-value="btn.send">Send</button>
+        </div>
+        <div class="ui">
+          <div class="ui_group">
+            <label for="lookAtHeadChk" data-locale="label.lookathead">LookAtHead:</label>
+            <input type="checkbox" id="lookAtHeadChk" data-target="lookAtHeadLink" data-param="enable" checked />
+          </div>
+        </div>
+        <div>
+          <textarea id="lookAtHeadResult" placeholder="Result" data-locale-placeholder="placeholder.result"></textarea>
         </div>
       </div>
     </div>
