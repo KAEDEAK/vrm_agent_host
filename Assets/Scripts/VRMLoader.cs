@@ -123,6 +123,13 @@ public class VRMLoader : MonoBehaviour {
         mainCamera.farClipPlane = 1000f;
         model.transform.localScale = Vector3.one;
 
+        mainCamera.transform.position = config.Camera.position;
+        if (!config.Camera.headTracking) {
+            mainCamera.transform.rotation = Quaternion.Euler(config.Camera.rotation);
+            Debug.Log($"[VRMLoader] Camera set by config: pos={mainCamera.transform.position}, rot={mainCamera.transform.rotation.eulerAngles}");
+            return;
+        }
+
         Transform headBone = GetHeadBone(model);
         if (headBone == null) {
             Debug.LogError(i18nMsg.VRML_HEAD_BONE_NOT_FOUND);

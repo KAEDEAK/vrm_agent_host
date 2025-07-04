@@ -56,6 +56,9 @@
   - 透過表示、ドラッグ許可、最前面化、位置・サイズ保持などウィンドウ挙動全般。`position` で初期配置を指定します。
 - **camera**
   - `orthographic`、`orthographicSize`、`fieldOfView`、`antiAliasing` などカメラの基本設定。
+  - `headTracking` を `false` にするとVRMロード時の自動カメラ合わせを無効化します。
+  - `position` は常に初期カメラの座標として適用されます。
+  - `rotation` は `headTracking` が `false` のときのみ適用されます。
 - **shadows**
   - シャドウの強さや解像度、バイアス設定。
 - **lipSync.bandRanges**

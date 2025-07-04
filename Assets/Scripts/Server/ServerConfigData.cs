@@ -40,6 +40,9 @@ public class CameraConfigData {
     public float orthographicSize = 0.4f;
     public float fieldOfView = 60f;
     public int antiAliasing = 4;
+    public bool headTracking = true;
+    public Vector3 position = new Vector3(0, 1, -10);
+    public Vector3 rotation = Vector3.zero;
 }
 
 [Serializable]
