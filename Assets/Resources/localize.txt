@@ -16,6 +16,16 @@
           { "id": "label.orthoMode", "txt": "Orthographic Mode:" },
           { "id": "camera.size.title", "txt": "[SET] Set Orthographic Size" },
           { "id": "label.orthoSize", "txt": "Size:" },
+
+          { "id": "section.look.title", "txt": "Eye Control" },
+          { "id": "look.look.title", "txt": "[SET] Direct Look" },
+          { "id": "look.bone.title", "txt": "[SET] Look At Bone" },
+          { "id": "look.camera.title", "txt": "[SET] Look At Camera" },
+          { "id": "label.yaw", "txt": "Yaw:" },
+          { "id": "label.pitch", "txt": "Pitch:" },
+          { "id": "label.mode", "txt": "Mode:" },
+          { "id": "label.eye", "txt": "Eye:" },
+          { "id": "label.bone", "txt": "Bone:" },
   
           { "id": "section.lipsync.title", "txt": "Audio Reactive Lip Sync" },
           { "id": "lipsync.getstatus", "txt": "[GET] Get Lip Sync Status" },
@@ -114,6 +124,16 @@
           { "id": "label.orthoMode", "txt": "Orthographic モード：" },
           { "id": "camera.size.title", "txt": "[SET] Orthographic Size 設定" },
           { "id": "label.orthoSize", "txt": "サイズ：" },
+
+          { "id": "section.look.title", "txt": "視線制御" },
+          { "id": "look.look.title", "txt": "[SET] 視線角度指定 (look)" },
+          { "id": "look.bone.title", "txt": "[SET] 骨を注視 (lookAtBone)" },
+          { "id": "look.camera.title", "txt": "[SET] カメラ注視 (lookAtCamera)" },
+          { "id": "label.yaw", "txt": "Yaw:" },
+          { "id": "label.pitch", "txt": "Pitch:" },
+          { "id": "label.mode", "txt": "モード：" },
+          { "id": "label.eye", "txt": "目：" },
+          { "id": "label.bone", "txt": "ボーン：" },
   
           { "id": "section.lipsync.title", "txt": "Audio Reactive Lip Sync" },
           { "id": "lipsync.getstatus", "txt": "[GET] リップシンクステータス取得" },
