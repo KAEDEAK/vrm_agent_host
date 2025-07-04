@@ -406,6 +406,12 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                     }
 
                     EyeRotationOverride.SetGlobalLookRotation(yawDeg, pitchDeg, eyeSel);
+
+                    var lookAtHead = vrmInstanceObj.GetComponent<VRMLookAtHead>();
+                    if (lookAtHead != null && lookAtHead.enabled)
+                    {
+                        lookAtHead.RaiseYawPitchChanged(yawDeg, pitchDeg);
+                    }
                     responseData.status = 200;
                     responseData.message = "look applied";
                     break;
@@ -458,6 +464,12 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                             break;
                     }
                     EyeRotationOverride.SetGlobalLookRotation(yawDeg, pitchDeg, eyeSel);
+
+                    var lookAtHeadBone = vrmInstanceObj.GetComponent<VRMLookAtHead>();
+                    if (lookAtHeadBone != null && lookAtHeadBone.enabled)
+                    {
+                        lookAtHeadBone.RaiseYawPitchChanged(yawDeg, pitchDeg);
+                    }
                     responseData.status = 200;
                     responseData.message = "lookAtBone applied";
                     break;
@@ -497,6 +509,12 @@ public class VrmCommandHandler : HttpCommandHandlerBase {
                             break;
                     }
                     EyeRotationOverride.SetGlobalLookRotation(yawDeg, pitchDeg, eyeSel);
+
+                    var lookAtHeadCam = vrmInstanceObj.GetComponent<VRMLookAtHead>();
+                    if (lookAtHeadCam != null && lookAtHeadCam.enabled)
+                    {
+                        lookAtHeadCam.RaiseYawPitchChanged(yawDeg, pitchDeg);
+                    }
                     responseData.status = 200;
                     responseData.message = "lookAtCamera applied";
                     break;

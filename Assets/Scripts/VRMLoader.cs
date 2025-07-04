@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading.Tasks;
 using UnityEngine;
 using UniVRM10;
+using VRM;
 
 public class VRMLoader : MonoBehaviour {
     public GameObject LoadedModel { get; private set; }
@@ -61,6 +62,13 @@ public class VRMLoader : MonoBehaviour {
             {
                 LoadedModel.AddComponent<EyeRotationOverride>();
                 Debug.Log("[VRMLoader] EyeRotationOverride added to loaded model");
+            }
+
+            var lookAtHead = LoadedModel.GetComponent<VRM.VRMLookAtHead>();
+            if (lookAtHead != null)
+            {
+                lookAtHead.UpdateType = VRM.UpdateType.LateUpdate;
+                Debug.Log("[VRMLoader] VRMLookAtHead UpdateType set to LateUpdate");
             }
 
             EnableUpdateWhenOffscreen(LoadedModel);
