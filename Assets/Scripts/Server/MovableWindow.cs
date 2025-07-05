@@ -38,6 +38,7 @@ public class MovableWindow : MonoBehaviour {
 
     private ServerConfig config;
     private TransparentWindow transparentWindow;
+    private WingMenuSystem wingMenuSystem;
 
     // [CDK-01001] 右クリックリサイズフラグ（前回と同じ）
     private bool isResizingRight = false;
@@ -57,11 +58,19 @@ public class MovableWindow : MonoBehaviour {
 
         // TransparentWindow を取得（allowDragObjects 状態確認用）
         transparentWindow = FindFirstObjectByType<TransparentWindow>();
+        
+        // WingMenuSystem を取得（競合回避用）
+        wingMenuSystem = FindFirstObjectByType<WingMenuSystem>();
     }
 
     void Update() {
         if (Application.isEditor || transparentWindow == null || !transparentWindow.IsAllowDragObjects()) {
             return; // 透過ドラッグが許可されてない場合は無効
+        }
+
+        // WingMenuSystemがクリックを処理している場合はスキップ
+        if (wingMenuSystem != null && wingMenuSystem.HasProcessedClick()) {
+            return;
         }
 
         // === (1) 左ドラッグでウィンドウ移動 ===

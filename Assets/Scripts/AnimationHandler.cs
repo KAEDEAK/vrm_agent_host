@@ -522,7 +522,7 @@ public class AnimationHandler : MonoBehaviour {
         if (animator != null)
         {
             // 1. SpringBone を事前に無効化（アニメータ切り替え前）
-            List<Vrm10SpringBoneJoint> disabledJoints = DisableAllSpringBones(vrmLoader.VrmInstance.gameObject);
+            List<Component> disabledJoints = DisableAllSpringBones(vrmLoader.VrmInstance.gameObject);
             Debug.Log("🔧 SpringBone disabled before animator transition");
 
             // 2. VRMAアニメーション解除
@@ -555,96 +555,49 @@ public class AnimationHandler : MonoBehaviour {
     }
 
     /// <summary>
-    /// 全ての SpringBoneJoint を一時的に無効化し、無効化したリストを返す
+    /// SpringBone機能は廃止されました - 代替実装として空のメソッドを提供
     /// </summary>
-    private List<Vrm10SpringBoneJoint> DisableAllSpringBones(GameObject root)
+    private List<Component> DisableAllSpringBones(GameObject root)
     {
-        var disabled = new List<Vrm10SpringBoneJoint>();
+        var disabled = new List<Component>();
         if (root == null) return disabled;
 
-        var joints = root.GetComponentsInChildren<Vrm10SpringBoneJoint>(true);
-        foreach (var joint in joints)
-        {
-            if (joint.enabled)
-            {
-                joint.enabled = false;
-                disabled.Add(joint);
-            }
-        }
-
-        Debug.Log($"🔧 SpringBone temporarily disabled: {disabled.Count} joints");
+        // SpringBone機能は廃止されたため、何も行わない
+        Debug.Log("🔧 SpringBone functionality has been deprecated - skipping disable operation");
         return disabled;
     }
 
     /// <summary>
-    /// 指定された SpringBoneJoint を再有効化する
+    /// SpringBone機能は廃止されました - 代替実装として空のメソッドを提供
     /// </summary>
-    private void EnableSpringBones(List<Vrm10SpringBoneJoint> joints)
+    private void EnableSpringBones(List<Component> joints)
     {
-        foreach (var joint in joints)
-        {
-            if (joint != null)
-            {
-                joint.enabled = true;
-            }
-        }
-
-        Debug.Log($"🔧 SpringBone re-enabled: {joints.Count} joints");
+        // SpringBone機能は廃止されたため、何も行わない
+        Debug.Log("🔧 SpringBone functionality has been deprecated - skipping enable operation");
     }
 
     /// <summary>
-    /// SpringBone を段階的に無効化するオプションメソッド
+    /// SpringBone機能は廃止されました - 段階的無効化メソッドも廃止
     /// </summary>
     private IEnumerator GradualDisableSpringBones(GameObject root, float duration = 0.2f)
     {
         if (root == null) yield break;
 
-        var joints = root.GetComponentsInChildren<Vrm10SpringBoneJoint>(true);
-        if (joints.Length == 0) yield break;
-
-        float timePerStep = duration / joints.Length;
-        foreach (var joint in joints)
-        {
-            if (joint.enabled)
-            {
-                joint.enabled = false;
-                yield return new WaitForSeconds(timePerStep);
-            }
-        }
-
-        Debug.Log($"🔧 SpringBone gradually disabled: {joints.Length} joints over {duration}s");
+        // SpringBone機能は廃止されたため、何も行わない
+        Debug.Log("🔧 SpringBone functionality has been deprecated - skipping gradual disable operation");
+        yield break;
     }
 
     /// <summary>
-    /// SpringBone をランダムな順序で無効化するオプションメソッド
+    /// SpringBone機能は廃止されました - ランダム無効化メソッドも廃止
     /// </summary>
     private IEnumerator RandomDisableSpringBones(GameObject root, float duration = 0.15f)
     {
         if (root == null) yield break;
 
-        var joints = new List<Vrm10SpringBoneJoint>(root.GetComponentsInChildren<Vrm10SpringBoneJoint>(true));
-        if (joints.Count == 0) yield break;
-
-        // シャッフル
-        for (int i = 0; i < joints.Count; i++)
-        {
-            var temp = joints[i];
-            int randomIndex = UnityEngine.Random.Range(i, joints.Count);
-            joints[i] = joints[randomIndex];
-            joints[randomIndex] = temp;
-        }
-
-        float timePerStep = duration / joints.Count;
-        foreach (var joint in joints)
-        {
-            if (joint.enabled)
-            {
-                joint.enabled = false;
-                yield return new WaitForSeconds(timePerStep);
-            }
-        }
-
-        Debug.Log($"🔧 SpringBone randomly disabled: {joints.Count} joints over {duration}s");
+        // SpringBone機能は廃止されたため、何も行わない
+        Debug.Log("🔧 SpringBone functionality has been deprecated - skipping random disable operation");
+        yield break;
     }
 
     public void ResetAGIAAnimation() {
@@ -670,7 +623,7 @@ public class AnimationHandler : MonoBehaviour {
         Debug.Log($"🔓 Force reset lock counter from {oldLockCount} to 0 before reset");
 
         // 1. SpringBone を事前に無効化
-        List<Vrm10SpringBoneJoint> disabledJoints = DisableAllSpringBones(vrmLoader?.VrmInstance?.gameObject);
+        List<Component> disabledJoints = DisableAllSpringBones(vrmLoader?.VrmInstance?.gameObject);
 
         // 2. VRMAアニメーション解除
         if (vrmLoader?.VrmInstance?.Runtime != null) {

@@ -32,19 +32,38 @@ public class ServerConfig {
     public static ServerConfig Instance {
         get {
 #if UNITY_EDITOR
-            // Editorモードでは初期化しない
+            // Editorモードでは初期化しない（厳密チェック）
             if (!UnityEditor.EditorApplication.isPlaying) {
+                DebugLogger.LogVerbose("[ServerConfig] Access denied: Editor is not in play mode");
                 return null;
             }
 #endif
-            // Play mode でのみ初期化
+            // Play mode でのみ初期化（二重チェック）
             if (!Application.isPlaying) {
+                DebugLogger.LogVerbose("[ServerConfig] Access denied: Application.isPlaying is false");
                 return null;
             }
             
             if (_instance == null) {
                 lock (_lock) {
-                    if (_instance == null) _instance = LoadConfig();
+                    if (_instance == null) {
+                        // 最終チェック：初期化時にも再度確認
+#if UNITY_EDITOR
+                        if (!UnityEditor.EditorApplication.isPlaying) {
+                            Debug.LogWarning("[ServerConfig] Initialization blocked: Editor not in play mode");
+                            return null;
+                        }
+#endif
+                        if (!Application.isPlaying) {
+                            Debug.LogWarning("[ServerConfig] Initialization blocked: Application not playing");
+                            return null;
+                        }
+                        
+                        _instance = LoadConfig();
+                        if (_instance != null) {
+                            Debug.Log("[ServerConfig] Successfully initialized in runtime mode");
+                        }
+                    }
                 }
             }
             return _instance;
@@ -186,10 +205,29 @@ public class ServerConfig {
     }
 
     private static ServerConfig LoadConfig() {
+        // 追加の安全チェック：LoadConfig時にも環境を確認
+#if UNITY_EDITOR
+        if (!UnityEditor.EditorApplication.isPlaying) {
+            Debug.LogError("[ServerConfig] LoadConfig called in Editor non-play mode - aborting");
+            return null;
+        }
+#endif
+        if (!Application.isPlaying) {
+            Debug.LogError("[ServerConfig] LoadConfig called when Application.isPlaying is false - aborting");
+            return null;
+        }
+
         EnsureConfigFile();
 
-        try { return new ServerConfig(); }
-        catch { return new ServerConfig(); }
+        try { 
+            var config = new ServerConfig();
+            Debug.Log("[ServerConfig] Configuration loaded successfully");
+            return config;
+        }
+        catch (Exception ex) {
+            Debug.LogError($"[ServerConfig] Failed to load configuration: {ex.Message}");
+            return new ServerConfig();
+        }
     }
 
     private void LoadAnimationMappings() {

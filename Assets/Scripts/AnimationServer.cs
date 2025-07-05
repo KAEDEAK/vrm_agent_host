@@ -10,6 +10,7 @@ using System.Threading;
 using UnityEngine;
 using System.Text.RegularExpressions;
 using System.Linq;
+using System.Runtime.InteropServices;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -38,9 +39,29 @@ public class AnimationServer : MonoBehaviour {
     public int targetFramerate = 60;
 
     private volatile bool _serverStopping = false; // 停止フラグ
+    private volatile bool _forceShutdown = false; // 強制終了フラグ
 
     // HttpListenerContext をスレッド安全にキューイングしてメインスレッドで処理する
     private ConcurrentQueue<HttpListenerContext> requestQueue = new ConcurrentQueue<HttpListenerContext>();
+
+    // Win32 API for handling Windows messages
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr newProc);
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll")]
+    private static extern void ExitProcess(uint uExitCode);
+
+    private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+    private WndProcDelegate newWndProc;
+    private IntPtr oldWndProc;
+    private IntPtr hwnd;
+
+    private const int GWL_WNDPROC = -4;
+    private const uint WM_CLOSE = 0x0010;
+    private const uint WM_DESTROY = 0x0002;
+    private const uint WM_QUERYENDSESSION = 0x0011;
+    private const uint WM_ENDSESSION = 0x0016;
 
     // target=xxx で振り分ける各種コマンドハンドラ
     private Dictionary<string, IHttpCommandHandler> commandHandlers;
@@ -105,6 +126,12 @@ public class AnimationServer : MonoBehaviour {
         Instance = this;
         Application.runInBackground = true;
         AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+        
+        // Windows message handler setup for proper shutdown handling
+        if (!Application.isEditor) {
+            SetupWindowsMessageHandler();
+        }
+        
         // Play mode でのみ設定をロード
         if (Application.isPlaying) {
             LoadConfig();  // ServerConfig.Instance から設定をロード
@@ -191,11 +218,178 @@ public class AnimationServer : MonoBehaviour {
     // ★ 修正：もともと "listenerThread" を見てたが無いので httpListener / httpsListener だけチェック
     private void OnDestroy() {
         AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
+        
+        // Restore original window procedure
+        if (!Application.isEditor && hwnd != IntPtr.Zero && oldWndProc != IntPtr.Zero) {
+            try {
+                SetWindowLongPtr(hwnd, GWL_WNDPROC, oldWndProc);
+            } catch (Exception ex) {
+                Debug.LogWarning($"⚠️ Failed to restore window procedure: {ex.Message}");
+            }
+        }
+        
         if (httpListener != null || httpsListener != null) {
             Debug.LogWarning("🧹 OnDestroy: Server still running!? Trying to stop...");
             StopServer();
         }
         Instance = null;
+    }
+
+    #endregion
+
+    #region Windows Message Handler
+
+    private void SetupWindowsMessageHandler() {
+        try {
+            hwnd = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
+            if (hwnd == IntPtr.Zero) {
+                Debug.LogWarning("⚠️ Could not get main window handle for message handling");
+                return;
+            }
+
+            // Set up custom window procedure to handle close messages
+            newWndProc = new WndProcDelegate(CustomWndProc);
+            oldWndProc = SetWindowLongPtr(hwnd, GWL_WNDPROC, Marshal.GetFunctionPointerForDelegate(newWndProc));
+            
+            if (oldWndProc == IntPtr.Zero) {
+                Debug.LogWarning("⚠️ Failed to set custom window procedure");
+            } else {
+                Debug.Log("✅ Windows message handler setup complete");
+            }
+        } catch (Exception ex) {
+            Debug.LogError($"❌ Failed to setup Windows message handler: {ex.Message}");
+        }
+    }
+
+    private IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam) {
+        try {
+            switch (msg) {
+                case WM_CLOSE:
+                    Debug.Log("🚪 WM_CLOSE received - initiating graceful shutdown");
+                    InitiateGracefulShutdown();
+                    return IntPtr.Zero; // Prevent default handling temporarily
+
+                case WM_QUERYENDSESSION:
+                    Debug.Log("🔄 WM_QUERYENDSESSION received - preparing for shutdown");
+                    InitiateGracefulShutdown();
+                    return new IntPtr(1); // Allow shutdown
+
+                case WM_ENDSESSION:
+                    Debug.Log("🛑 WM_ENDSESSION received - forcing shutdown");
+                    _forceShutdown = true;
+                    ForceShutdown();
+                    return IntPtr.Zero;
+
+                case WM_DESTROY:
+                    Debug.Log("💥 WM_DESTROY received");
+                    _forceShutdown = true;
+                    break;
+            }
+        } catch (Exception ex) {
+            Debug.LogError($"❌ Error in CustomWndProc: {ex.Message}");
+        }
+
+        // Call original window procedure for other messages
+        if (oldWndProc != IntPtr.Zero) {
+            return CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+        }
+        return IntPtr.Zero;
+    }
+
+    private void InitiateGracefulShutdown() {
+        if (_serverStopping || _forceShutdown) return;
+
+        Debug.Log("🔄 Starting graceful shutdown sequence...");
+        StartCoroutine(GracefulShutdownSequence());
+    }
+
+    private IEnumerator GracefulShutdownSequence() {
+        float shutdownStartTime = Time.realtimeSinceStartup;
+        const float maxShutdownTime = 5.0f; // Maximum 5 seconds for graceful shutdown
+
+        // Step 1: Stop accepting new requests
+        _serverStopping = true;
+        Debug.Log("🛑 Step 1: Stopped accepting new requests");
+
+        // Step 2: Save window state
+        TrySaveWindowState();
+        Debug.Log("💾 Step 2: Window state saved");
+
+        // Step 3: Stop server components
+        StopServer();
+        Debug.Log("🔌 Step 3: Server components stopped");
+
+        // Step 4: Wait for threads to finish (with timeout)
+        float threadWaitStart = Time.realtimeSinceStartup;
+        while ((httpThread != null && httpThread.IsAlive) || 
+               (httpsThread != null && httpsThread.IsAlive)) {
+            
+            if (Time.realtimeSinceStartup - threadWaitStart > 3.0f) {
+                Debug.LogWarning("⚠️ Threads taking too long to stop, proceeding with shutdown");
+                break;
+            }
+            yield return new WaitForSeconds(0.1f);
+        }
+        Debug.Log("🧵 Step 4: Threads stopped");
+
+        // Step 5: Final cleanup
+        try {
+            // Clear any remaining resources
+            if (audioSource != null) {
+                audioSource.Stop();
+                Destroy(audioSource.gameObject);
+            }
+        } catch (Exception ex) {
+            Debug.LogWarning($"⚠️ Error during final cleanup: {ex.Message}");
+        }
+
+        float totalShutdownTime = Time.realtimeSinceStartup - shutdownStartTime;
+        Debug.Log($"✅ Graceful shutdown completed in {totalShutdownTime:F2} seconds");
+
+        // Step 6: Exit application
+        yield return new WaitForSeconds(0.1f);
+        
+#if UNITY_EDITOR
+        EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+        
+        // If Application.Quit() doesn't work within reasonable time, force exit
+        yield return new WaitForSeconds(2.0f);
+        if (!_forceShutdown) {
+            Debug.LogWarning("⚠️ Application.Quit() taking too long, forcing exit");
+            ForceShutdown();
+        }
+#endif
+    }
+
+    private void ForceShutdown() {
+        if (_forceShutdown) return;
+        _forceShutdown = true;
+
+        Debug.Log("💀 Force shutdown initiated");
+        
+        try {
+            // Last attempt to save critical data
+            TrySaveWindowState();
+        } catch (Exception ex) {
+            Debug.LogError($"❌ Error during force shutdown save: {ex.Message}");
+        }
+
+#if !UNITY_EDITOR
+        try {
+            // Force terminate the process
+            ExitProcess(0);
+        } catch (Exception ex) {
+            Debug.LogError($"❌ Failed to force exit process: {ex.Message}");
+            // Fallback: try Environment.Exit
+            try {
+                System.Environment.Exit(0);
+            } catch (Exception ex2) {
+                Debug.LogError($"❌ Failed Environment.Exit: {ex2.Message}");
+            }
+        }
+#endif
     }
 
     #endregion

@@ -38,6 +38,22 @@ public class WavePlaybackHandler : MonoBehaviour {
     private AudioSource spatialAudioSource; // アバターの頭に配置する音源
 
     private void Awake() {
+        // Editor環境での実行を防止（追加の安全対策）
+        #if UNITY_EDITOR
+        if (!UnityEditor.EditorApplication.isPlaying) {
+            Debug.LogWarning("[WavePlaybackHandler] Attempted to initialize in Editor non-play mode - destroying");
+            Destroy(gameObject);
+            return;
+        }
+        #endif
+        
+        // Runtime環境でのみ実行を許可
+        if (!Application.isPlaying) {
+            Debug.LogWarning("[WavePlaybackHandler] Attempted to initialize when Application.isPlaying is false - destroying");
+            Destroy(gameObject);
+            return;
+        }
+
         if (Instance == null) {
             Instance = this;
             // エディタ環境以外でのみDontDestroyOnLoadを適用
@@ -45,17 +61,35 @@ public class WavePlaybackHandler : MonoBehaviour {
             DontDestroyOnLoad(gameObject);
             #endif
             InitializeWavePlayback();
+            Debug.Log("[WavePlaybackHandler] Successfully initialized in runtime mode");
         } else {
+            Debug.LogWarning("[WavePlaybackHandler] Instance already exists - destroying duplicate");
             Destroy(gameObject);
         }
     }
 
     private void InitializeWavePlayback() {
+        // 追加の安全チェック：Editor環境での初期化を防止
+        #if UNITY_EDITOR
+        if (!UnityEditor.EditorApplication.isPlaying) {
+            Debug.LogError("[WavePlaybackHandler] InitializeWavePlayback called in Editor non-play mode - aborting");
+            return;
+        }
+        #endif
+        
+        if (!Application.isPlaying) {
+            Debug.LogError("[WavePlaybackHandler] InitializeWavePlayback called when Application.isPlaying is false - aborting");
+            return;
+        }
+
         // Load configuration
         var config = ServerConfig.Instance;
         if (config != null) {
             enableWavePlayback = config.wavePlaybackEnabled;
             waveEndpoint = "/waveplay/";
+        } else {
+            Debug.LogWarning("[WavePlaybackHandler] ServerConfig.Instance is null - using default settings");
+            enableWavePlayback = false; // デフォルトで無効化
         }
 
         // Get references to other systems
