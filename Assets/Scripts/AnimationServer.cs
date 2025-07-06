@@ -186,7 +186,8 @@ public class AnimationServer : MonoBehaviour {
             { "background", new BackgroundCommandHandler(imageLoader) },
             { "server",     new ServerCommandHandler() },
             { "camera",     new CameraCommandHandler(vrmLoader) },
-            { "credits",    new CreditsCommandHandler() }
+            { "credits",    new CreditsCommandHandler() },
+            { "wingsys",    new WingMenuCommandHandler() }
         };
 
         StartServer();

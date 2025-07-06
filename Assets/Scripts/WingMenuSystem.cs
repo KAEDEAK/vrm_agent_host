@@ -24,6 +24,35 @@ public class WingMenuSystem : MonoBehaviour
     private Color wingColor = new Color(0.3f, 0.7f, 1f, 1f);
     private Color hoverColor = new Color(1f, 1f, 0.3f, 1f);
     private Color exitColor = new Color(1f, 0.3f, 0.3f, 1f);
+    
+    [Header("Rainbow Wing Settings")]
+    [SerializeField] private bool enableRainbowEffect = true;
+    [SerializeField] private float rainbowSpeed = 15.0f;
+    [SerializeField] private float wingTransparency = 0.6f;
+    [SerializeField] private float brightnessMultiplier = 2.2f;
+    [SerializeField] private float saturation = 0.6f;
+    
+    [Header("Sparkle Particle Settings")]
+    [SerializeField] private bool enableSparkleEffect = true;
+    [SerializeField] private int particlesPerWing = 2;
+    [SerializeField] private float particleLifetime = 1.0f;
+    [SerializeField] private float particleSpawnInterval = 0.2f;
+    [SerializeField] private float particleSize = 0.05f;
+    
+    // 虹色エフェクトの定数
+    private const float RAINBOW_SPEED_MULTIPLIER = 1.6f;  // 色変化の速度倍率（1秒間に8回循環）
+
+    // パーティクルデータ構造
+    [System.Serializable]
+    public class SparkleParticle
+    {
+        public GameObject particleObject;
+        public float lifetime;
+        public float maxLifetime;
+        public Vector3 velocity;
+        public float startAlpha;
+        public int wingIndex;
+    }
 
     // 内部状態
     private bool isMenuOpen = false;
@@ -38,9 +67,56 @@ public class WingMenuSystem : MonoBehaviour
     private float lastClickTime = 0f;
     private const float doubleClickThreshold = 0.3f;  // ダブルクリックの判定時間
 
+    // パーティクルシステム
+    private List<SparkleParticle> activeParticles = new List<SparkleParticle>();
+    private float lastParticleSpawnTime = 0f;
+
     // レイヤー設定
     private const string MENU_LAYER_NAME = "UI";
     private int menuLayer;
+
+    // HTTP制御用の新規プロパティ
+    [Header("HTTP Control Settings")]
+    private string[] menuLabels = new string[8]; // ラベル配列（羽には表示しない）
+    private bool leftWingsVisible = true;
+    private bool rightWingsVisible = true;
+    private int leftWingCount = 4;
+    private int rightWingCount = 4;
+    private float angleDelta = 20f; // 羽の角度変化率
+    private float angleStart = 0f;  // 羽の開始角度
+    
+    [Header("Color Control Settings")]
+    private string normalColorMode = "white";        // 通常時の色モード
+    private string animationColorMode = "gaming";     // アニメーション時の色モード  
+    private string hoverNoCommandColorMode = "blue"; // ホバー時（コマンド無）の色モード
+    private string hoverWithCommandColorMode = "yellow";  // ホバー時（コマンド有）の色モード
+    
+    // 色変換用の辞書
+    private static readonly Dictionary<string, Color> ColorModeMap = new Dictionary<string, Color>
+    {
+        {"white", Color.white},
+        {"lightblue", new Color(0.7f, 0.9f, 1f, 1f)},
+        {"yellow", Color.yellow},
+        {"red", Color.red},
+        {"green", Color.green},
+        {"blue", Color.blue},
+        {"black", Color.black},
+        {"gaming", Color.white} // ゲーミング効果用の特別値
+    };
+    
+    [Header("Wing Shape Settings")]
+    private float bladeLength = 1.0f;     // 羽の長さ（両側共通）
+    private float bladeEdge = 0.5f;       // 形状の減衰率（両側共通）
+    private float bladeModifier = 0.0f;   // 次の羽のサイズ減少率（両側共通）
+    
+    [Header("Wing Shape Settings - Left/Right Independent")]
+    private float bladeLeftLength = 1.0f;     // 左側の羽の長さ
+    private float bladeLeftEdge = 0.5f;       // 左側の形状の減衰率
+    private float bladeLeftModifier = 0.0f;   // 左側の次の羽のサイズ減少率
+    private float bladeRightLength = 1.0f;    // 右側の羽の長さ
+    private float bladeRightEdge = 0.5f;      // 右側の形状の減衰率
+    private float bladeRightModifier = 0.0f;  // 右側の次の羽のサイズ減少率
+    private bool useIndependentShapes = false; // 左右独立設定を使用するかどうか
 
     void Start()
     {
@@ -94,14 +170,27 @@ public class WingMenuSystem : MonoBehaviour
 
     void Update()
     {
+        // 色制御システムの更新（常に実行）
+        if (isMenuOpen)
+        {
+            UpdateWingColors();
+        }
+
+        // パーティクルエフェクトの更新
+        if (enableSparkleEffect && isMenuOpen)
+        {
+            UpdateSparkleParticles();
+            SpawnSparkleParticles();
+        }
+
         // アニメーション中は入力を受け付けない
         if (isAnimating) return;
 
-        // 左クリック処理
+        // 左クリック処理（メニューアイテムのクリックのみ処理）
         if (Input.GetMouseButtonDown(0))
         {
             Debug.Log("[WingMenu] Mouse button down detected");
-            HandleMouseClick();
+            HandleMenuItemClick();
         }
         else if (Input.GetMouseButtonUp(0))
         {
@@ -109,11 +198,11 @@ public class WingMenuSystem : MonoBehaviour
             hasProcessedClick = false;
         }
         
-        // 右クリックでメニュー表示（MovableWindowと競合しない）
-        if (Input.GetMouseButtonDown(1) && !isMenuOpen)
+        // 右クリックでメニューのトグル
+        if (Input.GetMouseButtonDown(1))
         {
-            Debug.Log("[WingMenu] Right click - showing menu");
-            ShowMenu();
+            Debug.Log("[WingMenu] Right click - toggling menu");
+            ToggleMenu();
         }
 
         // ホバー処理
@@ -124,6 +213,14 @@ public class WingMenuSystem : MonoBehaviour
         {
             // 羽だけを画面中央に表示
             ShowMenuAtCenter();
+        }
+        
+        // VRM読み込み前：メニューが閉じられてもすぐに再表示（終了ボタンアクセス確保）
+        if (!isMenuOpen && hasEverBeenClosed && (vrmLoader == null || vrmLoader.LoadedModel == null))
+        {
+            // VRM読み込み前は強制的にメニューを再表示
+            ShowMenuAtCenter();
+            hasEverBeenClosed = false; // フラグをリセットして再表示を許可
         }
         
     // デバッグ用：Tキーでメニューを強制表示/非表示
@@ -167,7 +264,7 @@ public class WingMenuSystem : MonoBehaviour
 
     private void CreateWingItems()
     {
-        // 左側の羽を4個作成
+        // 左側の羽を4個作成（対称配置：exit, reset_shape, reset_pose, placeholder）
         for (int i = 0; i < 4; i++)
         {
             var wingItem = new WingMenuItem();
@@ -188,15 +285,33 @@ public class WingMenuSystem : MonoBehaviour
             );
             wingItem.targetRotation = Quaternion.Euler(0, 0, angle * Mathf.Rad2Deg - 45);
             
-            // 機能割り当て
-            wingItem.label = $"Menu {i + 1}";
-            int capturedIndex = i;  // ラムダ式用にインデックスをキャプチャ
-            wingItem.onClick = () => OnPlaceholderClick(capturedIndex);
+            // 機能割り当て（対称配置）
+            if (i == 0) // 左下（左側の1番目）がEXIT
+            {
+                wingItem.label = "exit";
+                wingItem.onClick = OnExitClick;
+            }
+            else if (i == 1) // 左側の2番目がRESET_SHAPE
+            {
+                wingItem.label = "reset_shape";
+                wingItem.onClick = () => ExecuteBuiltinFunction("reset_shape");
+            }
+            else if (i == 2) // 左側の3番目がRESET_POSE
+            {
+                wingItem.label = "reset_pose";
+                wingItem.onClick = () => ExecuteBuiltinFunction("reset_pose");
+            }
+            else // 左側の4番目はプレースホルダー
+            {
+                wingItem.label = "placeholder";
+                int capturedIndex = i;  // ラムダ式用にインデックスをキャプチャ
+                wingItem.onClick = () => OnPlaceholderClick(capturedIndex);
+            }
             
             wingItems.Add(wingItem);
         }
         
-        // 右側の羽を4個作成
+        // 右側の羽を4個作成（対称配置：exit, reset_shape, reset_pose, placeholder）
         for (int i = 0; i < 4; i++)
         {
             var wingItem = new WingMenuItem();
@@ -217,20 +332,26 @@ public class WingMenuSystem : MonoBehaviour
             );
             wingItem.targetRotation = Quaternion.Euler(0, 0, -angle * Mathf.Rad2Deg + 45);
             
-            // 機能割り当て
+            // 機能割り当て（対称配置）
             if (i == 0) // 右下（右側の1番目）がEXIT
             {
-                wingItem.label = "EXIT";
+                wingItem.label = "exit";
                 wingItem.onClick = OnExitClick;
-                
-                // EXITの羽は赤っぽく
-                var renderer = wingItem.wingObject.GetComponent<MeshRenderer>();
-                renderer.material.color = exitColor;
             }
-            else
+            else if (i == 1) // 右側の2番目がRESET_SHAPE
             {
-                wingItem.label = $"Menu {i + 4}";  // 右側は4番目から（EXITが5番目になるため）
-                int capturedIndex = i + 3;  // ラムダ式用にインデックスをキャプチャ（EXITの分を調整）
+                wingItem.label = "reset_shape";
+                wingItem.onClick = () => ExecuteBuiltinFunction("reset_shape");
+            }
+            else if (i == 2) // 右側の3番目がRESET_POSE
+            {
+                wingItem.label = "reset_pose";
+                wingItem.onClick = () => ExecuteBuiltinFunction("reset_pose");
+            }
+            else // 右側の4番目はプレースホルダー
+            {
+                wingItem.label = "placeholder";
+                int capturedIndex = i + 4;  // ラムダ式用にインデックスをキャプチャ
                 wingItem.onClick = () => OnPlaceholderClick(capturedIndex);
             }
             
@@ -296,62 +417,12 @@ public class WingMenuSystem : MonoBehaviour
         
         meshFilter.mesh = mesh;
         
-        // マテリアル設定（確実に表示されるシェーダーを使用）
-        Material material = null;
-        
-        // 1. まずUnlit/Colorを試す（最も確実）
-        Shader shader = Shader.Find("Unlit/Color");
-        if (shader != null)
+        // 虹色エフェクト対応のマテリアル作成
+        Material material = CreateRainbowMaterial(name);
+        if (material == null)
         {
-            material = new Material(shader);
-            material.color = wingColor;
-            // カリングを無効にして両面表示
-            if (material.HasProperty("_Cull"))
-            {
-                material.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-            }
-            Debug.Log($"[WingMenu] Using Unlit/Color shader with color: {wingColor}");
-        }
-        else
-        {
-            // 2. Standardを試す
-            shader = Shader.Find("Standard");
-            if (shader != null)
-            {
-                material = new Material(shader);
-                material.color = wingColor;
-                // Opaqueモードに設定
-                material.SetFloat("_Mode", 0); // Opaque
-                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
-                material.SetInt("_ZWrite", 1);
-                material.DisableKeyword("_ALPHATEST_ON");
-                material.DisableKeyword("_ALPHABLEND_ON");
-                material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                material.renderQueue = -1;
-                // カリングを無効にして両面表示
-                if (material.HasProperty("_Cull"))
-                {
-                    material.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-                }
-                Debug.Log($"[WingMenu] Using Standard shader with color: {wingColor}");
-            }
-            else
-            {
-                // 3. 最後の手段でSprites/Default
-                shader = Shader.Find("Sprites/Default");
-                if (shader != null)
-                {
-                    material = new Material(shader);
-                    material.color = wingColor;
-                    Debug.LogWarning("[WingMenu] Using Sprites/Default shader as fallback");
-                }
-                else
-                {
-                    Debug.LogError("[WingMenu] No suitable shader found!");
-                    return null;
-                }
-            }
+            Debug.LogError("[WingMenu] Failed to create material!");
+            return null;
         }
         
         meshRenderer.material = material;
@@ -369,69 +440,40 @@ public class WingMenuSystem : MonoBehaviour
         return wing;
     }
 
-    private void HandleMouseClick()
+    private void HandleMenuItemClick()
     {
+        // メニューが開いていない場合は何もしない
+        if (!isMenuOpen) {
+            hasProcessedClick = false;
+            return;
+        }
+
         Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
         RaycastHit hit;
         
-        // 羽のクリックチェック
-        if (isMenuOpen)
-        {
-            Debug.Log("[WingMenu] Menu is open, checking wing clicks");
-            if (Physics.Raycast(ray, out hit, 100f, 1 << menuLayer))
-            {
-                Debug.Log($"[WingMenu] Hit object: {hit.collider.gameObject.name}");
-                // 羽がクリックされた
-                for (int i = 0; i < wingItems.Count; i++)
-                {
-                    if (hit.collider.gameObject == wingItems[i].wingObject)
-                    {
-                        Debug.Log($"[WingMenu] Wing {i} clicked");
-                        wingItems[i].onClick?.Invoke();
-                        hasProcessedClick = true;
-                        return;
-                    }
-                }
-            }
-            else
-            {
-                // メニュー外をクリックしたら閉じる
-                Debug.Log("[WingMenu] Clicked outside menu, closing");
-                HideMenu();
-                hasProcessedClick = true;
-                return;
-            }
-        }
+        Debug.Log("[WingMenu] Menu is open, checking wing clicks");
         
-        // アバターのクリックチェック（シングルクリック）
-        if (vrmLoader != null && vrmLoader.LoadedModel != null)
+        // 羽のクリックチェック
+        if (Physics.Raycast(ray, out hit, 100f, 1 << menuLayer))
         {
-            Debug.Log("[WingMenu] Checking avatar click");
+            Debug.Log($"[WingMenu] Hit object: {hit.collider.gameObject.name}");
             
-            // まず全てのヒットをチェック
-            RaycastHit[] hits = Physics.RaycastAll(ray, 100f);
-            Debug.Log($"[WingMenu] RaycastAll hit {hits.Length} objects");
+            // 羽がクリックされた場合、即座にフラグを設定
+            hasProcessedClick = true;
             
-            foreach (var h in hits)
+            for (int i = 0; i < wingItems.Count; i++)
             {
-                Debug.Log($"[WingMenu] Hit: {h.collider.gameObject.name} (layer: {h.collider.gameObject.layer})");
-                if (IsAvatarObject(h.collider.gameObject))
+                if (hit.collider.gameObject == wingItems[i].wingObject)
                 {
-                    Debug.Log("[WingMenu] Avatar clicked! Toggling menu");
-                    ToggleMenu();
-                    hasProcessedClick = true;
+                    Debug.Log($"[WingMenu] Wing {i} clicked");
+                    wingItems[i].onClick?.Invoke();
                     return;
                 }
             }
-            
-            Debug.Log("[WingMenu] No avatar hit detected");
-        }
-        else
-        {
-            Debug.Log($"[WingMenu] Avatar not ready - vrmLoader: {vrmLoader != null}, LoadedModel: {vrmLoader?.LoadedModel != null}");
         }
         
-        // どこにもヒットしなかった場合は、MovableWindowに処理を任せる
+        // メニュー外をクリックした場合はMovableWindowに処理を任せる
+        Debug.Log("[WingMenu] Clicked outside menu, letting MovableWindow handle it");
         hasProcessedClick = false;
     }
 
@@ -473,21 +515,20 @@ public class WingMenuSystem : MonoBehaviour
         
         if (newHoveredIndex != hoveredIndex)
         {
-            // 前のホバーを解除
-            if (hoveredIndex >= 0)
+            // 前のホバーのEmission効果を無効化
+            if (hoveredIndex >= 0 && hoveredIndex < wingItems.Count)
             {
-                var renderer = wingItems[hoveredIndex].wingObject.GetComponent<MeshRenderer>();
-                renderer.material.color = (hoveredIndex == 4) ? exitColor : wingColor;  // EXITは5番目（インデックス4）
-            }
-            
-            // 新しいホバーを適用
-            if (newHoveredIndex >= 0)
-            {
-                var renderer = wingItems[newHoveredIndex].wingObject.GetComponent<MeshRenderer>();
-                renderer.material.color = hoverColor;
+                var prevRenderer = wingItems[hoveredIndex].wingObject.GetComponent<MeshRenderer>();
+                if (prevRenderer != null && prevRenderer.material != null)
+                {
+                    SetHoverEmission(prevRenderer.material, false);
+                }
             }
             
             hoveredIndex = newHoveredIndex;
+            
+            // 新しい色制御システムで色を更新
+            UpdateWingColors();
         }
     }
 
@@ -553,6 +594,9 @@ public class WingMenuSystem : MonoBehaviour
             item.wingObject.transform.localPosition = Vector3.zero;
             item.wingObject.transform.localScale = Vector3.zero;
         }
+        
+        // パーティクルもクリア
+        ClearAllParticles();
     }
 
     private IEnumerator AnimateMenuOpen()
@@ -741,6 +785,12 @@ public class WingMenuSystem : MonoBehaviour
         return hasProcessedClick;
     }
     
+    // MovableWindowがメニューの状態を確認するため
+    public bool IsMenuOpen()
+    {
+        return isMenuOpen;
+    }
+    
     // テスト用：アニメーションなしで即座に表示
     private void ShowMenuImmediate()
     {
@@ -788,6 +838,9 @@ public class WingMenuSystem : MonoBehaviour
             // デバッグ情報を出力
             DebugMenuVisibility();
         }
+        
+        // VRM読み込み後の色のくすみ対策：全ての羽にEmissionを適用
+        ApplyPostVRMEmission();
     }
 
     // デバッグ用：遅延してデバッグ情報を出力
@@ -880,6 +933,395 @@ public class WingMenuSystem : MonoBehaviour
         StartCoroutine(DelayedDebugInfo());
     }
 
+    // 虹色エフェクト関連メソッド
+    private Material CreateRainbowMaterial(string wingName)
+    {
+        Material material = null;
+        
+        if (enableRainbowEffect)
+        {
+            // 透明対応のStandardシェーダーを使用
+            Shader shader = Shader.Find("Standard");
+            if (shader != null)
+            {
+                material = new Material(shader);
+                
+                // 透明モードに設定
+                material.SetFloat("_Mode", 3); // Transparent
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                material.SetInt("_ZWrite", 0);
+                material.DisableKeyword("_ALPHATEST_ON");
+                material.DisableKeyword("_ALPHABLEND_ON");
+                material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.renderQueue = 3000; // Transparent queue
+                
+                // カリングを無効にして両面表示
+                if (material.HasProperty("_Cull"))
+                {
+                    material.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+                }
+                
+                // 初期色を設定（後でUpdateRainbowColorsで更新される）
+                Color initialColor = GetRainbowColor(0, 0);
+                material.color = initialColor;
+                
+                Debug.Log($"[WingMenu] Created rainbow material for {wingName} with transparent Standard shader");
+            }
+            else
+            {
+                Debug.LogWarning("[WingMenu] Standard shader not found, falling back to basic material");
+                material = CreateBasicMaterial();
+            }
+        }
+        else
+        {
+            // 虹色エフェクトが無効の場合は従来のマテリアル
+            material = CreateBasicMaterial();
+        }
+        
+        return material;
+    }
+    
+    private Material CreateBasicMaterial()
+    {
+        Material material = null;
+        
+        // 1. まずUnlit/Colorを試す（最も確実）
+        Shader shader = Shader.Find("Unlit/Color");
+        if (shader != null)
+        {
+            material = new Material(shader);
+            material.color = wingColor;
+            // カリングを無効にして両面表示
+            if (material.HasProperty("_Cull"))
+            {
+                material.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+            }
+            Debug.Log($"[WingMenu] Using Unlit/Color shader with color: {wingColor}");
+        }
+        else
+        {
+            // 2. Standardを試す
+            shader = Shader.Find("Standard");
+            if (shader != null)
+            {
+                material = new Material(shader);
+                material.color = wingColor;
+                // Opaqueモードに設定
+                material.SetFloat("_Mode", 0); // Opaque
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                material.SetInt("_ZWrite", 1);
+                material.DisableKeyword("_ALPHATEST_ON");
+                material.DisableKeyword("_ALPHABLEND_ON");
+                material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.renderQueue = -1;
+                // カリングを無効にして両面表示
+                if (material.HasProperty("_Cull"))
+                {
+                    material.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+                }
+                Debug.Log($"[WingMenu] Using Standard shader with color: {wingColor}");
+            }
+            else
+            {
+                // 3. 最後の手段でSprites/Default
+                shader = Shader.Find("Sprites/Default");
+                if (shader != null)
+                {
+                    material = new Material(shader);
+                    material.color = wingColor;
+                    Debug.LogWarning("[WingMenu] Using Sprites/Default shader as fallback");
+                }
+                else
+                {
+                    Debug.LogError("[WingMenu] No suitable shader found!");
+                    return null;
+                }
+            }
+        }
+        
+        return material;
+    }
+    
+    private void UpdateRainbowColors()
+    {
+        // 新しい色制御システムを使用
+        UpdateWingColors();
+    }
+    
+    private Color GetRainbowColor(int wingIndex, float time)
+    {
+        // すべての羽が同じ色で統一（ゲーミング効果）
+        // 時間ベースで高速に色相を変化させる（定数で速度調整）
+        float hue = (time * rainbowSpeed * RAINBOW_SPEED_MULTIPLIER) % 1f;
+        
+        // HSVからRGBに変換（白ベースの虹色）
+        Color rainbowColor = Color.HSVToRGB(hue, saturation, brightnessMultiplier);
+        
+        // 透明度を設定
+        rainbowColor.a = wingTransparency;
+        
+        return rainbowColor;
+    }
+
+    // パーティクルシステム関連メソッド
+    private void UpdateSparkleParticles()
+    {
+        // 既存のパーティクルを更新
+        for (int i = activeParticles.Count - 1; i >= 0; i--)
+        {
+            var particle = activeParticles[i];
+            
+            // ライフタイムを減らす
+            particle.lifetime -= Time.deltaTime;
+            
+            if (particle.lifetime <= 0f)
+            {
+                // パーティクルを削除
+                if (particle.particleObject != null)
+                {
+                    DestroyImmediate(particle.particleObject);
+                }
+                activeParticles.RemoveAt(i);
+                continue;
+            }
+            
+            // パーティクルの位置を更新
+            if (particle.particleObject != null)
+            {
+                particle.particleObject.transform.localPosition += particle.velocity * Time.deltaTime;
+                
+                // フェードアウト効果
+                float alpha = Mathf.Lerp(0f, particle.startAlpha, particle.lifetime / particle.maxLifetime);
+                var renderer = particle.particleObject.GetComponent<MeshRenderer>();
+                if (renderer != null && renderer.material != null)
+                {
+                    Color currentColor = renderer.material.color;
+                    
+                    // 虹色エフェクトが有効な場合は虹色を適用
+                    if (enableRainbowEffect)
+                    {
+                        currentColor = GetRainbowColor(0, Time.time);
+                    }
+                    else
+                    {
+                        currentColor = Color.white;
+                    }
+                    
+                    currentColor.a = alpha;
+                    renderer.material.color = currentColor;
+                }
+            }
+        }
+    }
+    
+    private void SpawnSparkleParticles()
+    {
+        // スポーン間隔チェック
+        if (Time.time - lastParticleSpawnTime < particleSpawnInterval)
+            return;
+        
+        lastParticleSpawnTime = Time.time;
+        
+        // 各羽の周りにパーティクルを生成
+        for (int wingIndex = 0; wingIndex < wingItems.Count; wingIndex++)
+        {
+            if (wingItems[wingIndex].wingObject == null) continue;
+            
+            // この羽の現在のパーティクル数をチェック
+            int currentParticleCount = 0;
+            foreach (var particle in activeParticles)
+            {
+                if (particle.wingIndex == wingIndex)
+                    currentParticleCount++;
+            }
+            
+            // 最大数に達していない場合のみ生成
+            if (currentParticleCount < particlesPerWing)
+            {
+                CreateSparkleParticle(wingIndex);
+            }
+        }
+    }
+    
+    private void CreateSparkleParticle(int wingIndex)
+    {
+        var wingObject = wingItems[wingIndex].wingObject;
+        
+        // パーティクルオブジェクト作成
+        GameObject particleObj = new GameObject($"SparkleParticle_Wing{wingIndex}");
+        particleObj.layer = menuLayer;
+        particleObj.transform.SetParent(wingObject.transform);
+        
+        // 羽の周辺にランダム配置
+        Vector3 randomOffset = new Vector3(
+            Random.Range(-0.3f, 0.3f),
+            Random.Range(-0.4f, 0.4f),
+            Random.Range(-0.1f, 0.1f)
+        );
+        particleObj.transform.localPosition = randomOffset;
+        
+        // 小さなキューブメッシュを作成
+        MeshFilter meshFilter = particleObj.AddComponent<MeshFilter>();
+        MeshRenderer meshRenderer = particleObj.AddComponent<MeshRenderer>();
+        
+        // シンプルなキューブメッシュ
+        meshFilter.mesh = CreateSparkleParticleMesh();
+        
+        // パーティクル用マテリアル作成
+        Material particleMaterial = CreateSparkleParticleMaterial();
+        meshRenderer.material = particleMaterial;
+        
+        // レンダリング順序を羽より前に
+        meshRenderer.sortingOrder = 110;
+        
+        // パーティクルのスケール設定
+        particleObj.transform.localScale = Vector3.one * particleSize;
+        
+        // パーティクルデータ作成
+        SparkleParticle particle = new SparkleParticle
+        {
+            particleObject = particleObj,
+            lifetime = particleLifetime,
+            maxLifetime = particleLifetime,
+            velocity = new Vector3(
+                Random.Range(-0.1f, 0.1f),
+                Random.Range(0.1f, 0.3f),  // 上向きに移動
+                Random.Range(-0.05f, 0.05f)
+            ),
+            startAlpha = 0.8f,
+            wingIndex = wingIndex
+        };
+        
+        activeParticles.Add(particle);
+    }
+    
+    private Mesh CreateSparkleParticleMesh()
+    {
+        Mesh mesh = new Mesh();
+        
+        // シンプルな5つ星の形状を作成（軽量版）
+        float outerRadius = 0.5f;
+        float innerRadius = 0.2f;
+        int starPoints = 5;
+        
+        // 固定サイズの配列を使用してメモリ効率を改善
+        Vector3[] vertices = new Vector3[11]; // 中心1 + 星の頂点10
+        int[] triangles = new int[30]; // 10個の三角形 * 3頂点
+        
+        // 中心点
+        vertices[0] = Vector3.zero;
+        
+        // 星の頂点を計算
+        for (int i = 0; i < starPoints * 2; i++)
+        {
+            float angle = i * Mathf.PI / starPoints;
+            float radius = (i % 2 == 0) ? outerRadius : innerRadius;
+            
+            vertices[i + 1] = new Vector3(
+                Mathf.Cos(angle) * radius,
+                Mathf.Sin(angle) * radius,
+                0f
+            );
+        }
+        
+        // 三角形を作成（中心から各辺へ）
+        for (int i = 0; i < starPoints * 2; i++)
+        {
+            int triIndex = i * 3;
+            triangles[triIndex] = 0; // 中心点
+            triangles[triIndex + 1] = i + 1;
+            triangles[triIndex + 2] = ((i + 1) % (starPoints * 2)) + 1;
+        }
+        
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+        
+        return mesh;
+    }
+    
+    private Material CreateSparkleParticleMaterial()
+    {
+        // 透明対応のStandardシェーダーを使用
+        Shader shader = Shader.Find("Standard");
+        if (shader == null)
+        {
+            shader = Shader.Find("Unlit/Color");
+        }
+        
+        Material material = new Material(shader);
+        
+        if (shader.name == "Standard")
+        {
+            // 透明モードに設定
+            material.SetFloat("_Mode", 3); // Transparent
+            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetInt("_ZWrite", 0);
+            material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = 3000; // Transparent queue
+        }
+        
+        // 初期色を白に設定
+        material.color = new Color(1f, 1f, 1f, 0.8f);
+        
+        return material;
+    }
+    
+    private void ClearAllParticles()
+    {
+        // すべてのパーティクルを削除
+        foreach (var particle in activeParticles)
+        {
+            if (particle.particleObject != null)
+            {
+                DestroyImmediate(particle.particleObject);
+            }
+        }
+        activeParticles.Clear();
+    }
+
+    // ホバー時のEmission効果
+    private void SetHoverEmission(Material material, bool enable)
+    {
+        if (material == null) return;
+        
+        if (enable)
+        {
+            // Emissionを有効にして白く光らせる
+            material.EnableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", Color.white * 0.5f); // 適度な明るさ
+            
+            // 通常の色も白に設定
+            Color whiteColor = Color.white;
+            if (enableRainbowEffect)
+            {
+                whiteColor.a = wingTransparency;
+            }
+            material.color = whiteColor;
+        }
+        else
+        {
+            // VRM読み込み後は基本のEmissionを維持（完全に無効化しない）
+            if (vrmLoader != null && vrmLoader.LoadedModel != null)
+            {
+                // VRM読み込み後は基本のEmission（RGB: 180,180,180）を維持
+                material.EnableKeyword("_EMISSION");
+                Color baseEmissionColor = new Color(0.706f, 0.706f, 0.706f, 1.0f);
+                material.SetColor("_EmissionColor", baseEmissionColor);
+            }
+            else
+            {
+                // VRM読み込み前は従来通りEmissionを無効にする
+                material.DisableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", Color.black);
+            }
+        }
+    }
+
     // VRMLoader.csと同じヘルパーメソッドを追加
     private Transform GetHeadBone(GameObject model) {
         Animator animator = model.GetComponent<Animator>();
@@ -922,4 +1364,890 @@ public class WingMenuSystem : MonoBehaviour
         }
         return null;
     }
+
+    #region HTTP制御用メソッド
+
+    /// <summary>
+    /// HTTP経由でメニューを表示する
+    /// </summary>
+    /// <param name="side">表示する側 ("left", "right", null=両方)</param>
+    public void ShowMenuViaHttp(string side = null)
+    {
+        Debug.Log($"[WingMenu] ShowMenuViaHttp called with side: {side}");
+        
+        if (string.IsNullOrEmpty(side))
+        {
+            // 両方表示
+            leftWingsVisible = true;
+            rightWingsVisible = true;
+            ShowMenu();
+        }
+        else if (side.ToLower() == "left")
+        {
+            leftWingsVisible = true;
+            UpdateWingVisibility();
+            if (!isMenuOpen) ShowMenu();
+        }
+        else if (side.ToLower() == "right")
+        {
+            rightWingsVisible = true;
+            UpdateWingVisibility();
+            if (!isMenuOpen) ShowMenu();
+        }
+    }
+
+    /// <summary>
+    /// HTTP経由でメニューを非表示にする
+    /// </summary>
+    /// <param name="side">非表示にする側 ("left", "right", null=両方)</param>
+    public void HideMenuViaHttp(string side = null)
+    {
+        Debug.Log($"[WingMenu] HideMenuViaHttp called with side: {side}");
+        
+        if (string.IsNullOrEmpty(side))
+        {
+            // 両方非表示
+            leftWingsVisible = false;
+            rightWingsVisible = false;
+            HideMenu();
+        }
+        else if (side.ToLower() == "left")
+        {
+            leftWingsVisible = false;
+            UpdateWingVisibility();
+            if (!leftWingsVisible && !rightWingsVisible) HideMenu();
+        }
+        else if (side.ToLower() == "right")
+        {
+            rightWingsVisible = false;
+            UpdateWingVisibility();
+            if (!leftWingsVisible && !rightWingsVisible) HideMenu();
+        }
+    }
+
+    /// <summary>
+    /// HTTP経由でメニューを定義する
+    /// </summary>
+    /// <param name="allMenus">全8個のメニュー定義（カンマ区切り）</param>
+    /// <param name="leftMenus">左4個のメニュー定義（カンマ区切り）</param>
+    /// <param name="rightMenus">右4個のメニュー定義（カンマ区切り）</param>
+    public void DefineMenusViaHttp(string allMenus, string leftMenus, string rightMenus)
+    {
+        Debug.Log($"[WingMenu] DefineMenusViaHttp called - all: {allMenus}, left: {leftMenus}, right: {rightMenus}");
+        
+        if (!string.IsNullOrEmpty(allMenus))
+        {
+            // 全メニュー定義
+            string[] menuArray = allMenus.Split(',');
+            for (int i = 0; i < 8 && i < menuArray.Length; i++)
+            {
+                string menuLabel = menuArray[i].Trim();
+                if (string.IsNullOrEmpty(menuLabel))
+                {
+                    menuLabel = "placeholder";
+                }
+                menuLabels[i] = menuLabel;
+                UpdateWingAction(i, menuLabel);
+            }
+        }
+        else
+        {
+            // 左右個別定義
+            if (!string.IsNullOrEmpty(leftMenus))
+            {
+                string[] leftArray = leftMenus.Split(',');
+                for (int i = 0; i < 4 && i < leftArray.Length; i++)
+                {
+                    string menuLabel = leftArray[i].Trim();
+                    if (string.IsNullOrEmpty(menuLabel))
+                    {
+                        menuLabel = "placeholder";
+                    }
+                    menuLabels[i] = menuLabel;
+                    UpdateWingAction(i, menuLabel);
+                }
+            }
+            
+            if (!string.IsNullOrEmpty(rightMenus))
+            {
+                string[] rightArray = rightMenus.Split(',');
+                for (int i = 0; i < 4 && i < rightArray.Length; i++)
+                {
+                    string menuLabel = rightArray[i].Trim();
+                    if (string.IsNullOrEmpty(menuLabel))
+                    {
+                        menuLabel = "placeholder";
+                    }
+                    menuLabels[i + 4] = menuLabel;
+                    UpdateWingAction(i + 4, menuLabel);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// HTTP経由でメニューをクリアする（デフォルト状態：5番目にexitのみ）
+    /// </summary>
+    public void ClearMenusViaHttp()
+    {
+        Debug.Log("[WingMenu] ClearMenusViaHttp called");
+        
+        // 全てプレースホルダーに設定
+        for (int i = 0; i < 8; i++)
+        {
+            if (i == 4) // 5番目（インデックス4）はexit
+            {
+                menuLabels[i] = "exit";
+                UpdateWingAction(i, "exit");
+            }
+            else
+            {
+                menuLabels[i] = "placeholder";
+                UpdateWingAction(i, "placeholder");
+            }
+        }
+    }
+
+    /// <summary>
+    /// HTTP経由で羽の設定を変更する
+    /// </summary>
+    public void ConfigureWingsViaHttp(int? leftLength, int? rightLength, float? angleDelta, float? angleStart)
+    {
+        Debug.Log($"[WingMenu] ConfigureWingsViaHttp called - leftLength: {leftLength}, rightLength: {rightLength}, angleDelta: {angleDelta}, angleStart: {angleStart}");
+        
+        bool needsRecreate = false;
+        
+        if (leftLength.HasValue && leftLength.Value != leftWingCount)
+        {
+            leftWingCount = leftLength.Value;
+            needsRecreate = true;
+        }
+        
+        if (rightLength.HasValue && rightLength.Value != rightWingCount)
+        {
+            rightWingCount = rightLength.Value;
+            needsRecreate = true;
+        }
+        
+        if (angleDelta.HasValue)
+        {
+            this.angleDelta = angleDelta.Value;
+            needsRecreate = true;
+        }
+        
+        if (angleStart.HasValue)
+        {
+            this.angleStart = angleStart.Value;
+            needsRecreate = true;
+        }
+        
+        if (needsRecreate)
+        {
+            RecreateWingItems();
+        }
+    }
+
+    /// <summary>
+    /// HTTP経由でメニューの変形を設定する
+    /// </summary>
+    public void SetTransformViaHttp(Vector3? position, Vector3? rotation, Vector3? scale)
+    {
+        Debug.Log($"[WingMenu] SetTransformViaHttp called - position: {position}, rotation: {rotation}, scale: {scale}");
+        
+        if (menuContainer == null) return;
+        
+        if (position.HasValue)
+        {
+            menuContainer.transform.position = position.Value;
+        }
+        
+        if (rotation.HasValue)
+        {
+            menuContainer.transform.rotation = Quaternion.Euler(rotation.Value);
+        }
+        
+        if (scale.HasValue)
+        {
+            menuContainer.transform.localScale = scale.Value;
+        }
+    }
+
+    /// <summary>
+    /// HTTP経由でメニューの状態を取得する
+    /// </summary>
+    public Dictionary<string, object> GetMenuStatusViaHttp()
+    {
+        var status = new Dictionary<string, object>();
+        
+        // 可視性情報
+        var visible = new Dictionary<string, object>
+        {
+            {"left", leftWingsVisible},
+            {"right", rightWingsVisible}
+        };
+        status["visible"] = visible;
+        
+        // 位置・回転・スケール情報
+        if (menuContainer != null)
+        {
+            var pos = menuContainer.transform.position;
+            var rot = menuContainer.transform.rotation.eulerAngles;
+            var scl = menuContainer.transform.localScale;
+            
+            status["position"] = new Dictionary<string, object> {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}};
+            status["rotation"] = new Dictionary<string, object> {{"x", rot.x}, {"y", rot.y}, {"z", rot.z}};
+            status["scale"] = new Dictionary<string, object> {{"x", scl.x}, {"y", scl.y}, {"z", scl.z}};
+        }
+        
+        // 設定情報
+        var config = new Dictionary<string, object>
+        {
+            {"left_length", leftWingCount},
+            {"right_length", rightWingCount},
+            {"angle_delta", angleDelta},
+            {"angle_start", angleStart}
+        };
+        status["config"] = config;
+        
+        // メニュー情報
+        var menus = new Dictionary<string, object>();
+        var leftMenus = new List<Dictionary<string, object>>();
+        var rightMenus = new List<Dictionary<string, object>>();
+        
+        for (int i = 0; i < 8; i++)
+        {
+            string label = i < menuLabels.Length ? menuLabels[i] : "placeholder";
+            if (string.IsNullOrEmpty(label)) label = "placeholder";
+            
+            string type = GetMenuType(label);
+            var menuInfo = new Dictionary<string, object>
+            {
+                {"index", i},
+                {"label", label},
+                {"type", type}
+            };
+            
+            if (i < 4)
+            {
+                leftMenus.Add(menuInfo);
+            }
+            else
+            {
+                rightMenus.Add(menuInfo);
+            }
+        }
+        
+        menus["left"] = leftMenus;
+        menus["right"] = rightMenus;
+        status["menus"] = menus;
+        
+        return status;
+    }
+
+    /// <summary>
+    /// 羽の可視性を更新する
+    /// </summary>
+    private void UpdateWingVisibility()
+    {
+        if (wingItems == null) return;
+        
+        for (int i = 0; i < wingItems.Count; i++)
+        {
+            if (wingItems[i].wingObject == null) continue;
+            
+            bool shouldBeVisible = false;
+            if (i < 4) // 左側
+            {
+                shouldBeVisible = leftWingsVisible;
+            }
+            else // 右側
+            {
+                shouldBeVisible = rightWingsVisible;
+            }
+            
+            wingItems[i].wingObject.SetActive(shouldBeVisible && isMenuOpen);
+        }
+    }
+
+    /// <summary>
+    /// 羽のアクションを更新する
+    /// </summary>
+    private void UpdateWingAction(int index, string label)
+    {
+        if (index < 0 || index >= wingItems.Count) return;
+        
+        wingItems[index].label = label;
+        
+        if (WingMenuCommandHandler.IsBuiltinFunction(label))
+        {
+            wingItems[index].onClick = () => ExecuteBuiltinFunction(label);
+        }
+        else
+        {
+            wingItems[index].onClick = () => OnCustomMenuClick(index, label);
+        }
+    }
+
+    /// <summary>
+    /// Built-in Functionを実行する
+    /// </summary>
+    private void ExecuteBuiltinFunction(string functionName)
+    {
+        Debug.Log($"[WingMenu] Executing builtin function: {functionName}");
+        
+        switch (functionName.ToLower())
+        {
+            case "reset_pose":
+                ExecuteResetPose();
+                break;
+                
+            case "reset_shape":
+                ExecuteResetShape();
+                break;
+                
+            case "exit":
+                OnExitClick();
+                break;
+                
+            default:
+                Debug.LogWarning($"[WingMenu] Unknown builtin function: {functionName}");
+                break;
+        }
+    }
+
+    /// <summary>
+    /// ポーズリセット（AGIA待機アニメーション）
+    /// </summary>
+    private void ExecuteResetPose()
+    {
+        var animationHandler = FindObjectOfType<AnimationHandler>();
+        if (animationHandler != null && animationHandler.IsInitialized)
+        {
+            animationHandler.ResetAGIAAnimation();
+            Debug.Log("[WingMenu] Reset pose executed");
+        }
+        else
+        {
+            Debug.LogWarning("[WingMenu] AnimationHandler not found or not initialized");
+        }
+    }
+
+    /// <summary>
+    /// 口の形状リセット（全表情ウェイトを0に）
+    /// </summary>
+    private void ExecuteResetShape()
+    {
+        var vrmLoader = FindObjectOfType<VRMLoader>();
+        if (vrmLoader?.VrmInstance?.Runtime?.Expression != null)
+        {
+            var expression = vrmLoader.VrmInstance.Runtime.Expression;
+            foreach (var exKey in expression.ExpressionKeys)
+            {
+                expression.SetWeight(exKey, 0.0f);
+            }
+            Debug.Log("[WingMenu] Reset shape executed");
+        }
+        else
+        {
+            Debug.LogWarning("[WingMenu] VRM Expression system not available");
+        }
+    }
+
+    /// <summary>
+    /// カスタムメニューのクリック処理（将来のIoT拡張用）
+    /// </summary>
+    private void OnCustomMenuClick(int index, string label)
+    {
+        Debug.Log($"[WingMenu] Custom menu clicked - index: {index}, label: {label}");
+        
+        // 現在はプレースホルダー処理
+        if (label == "placeholder")
+        {
+            OnPlaceholderClick(index);
+        }
+        else
+        {
+            // 将来的にはここでHTTP APIコールを実装
+            Debug.Log($"[WingMenu] Future IoT action: {label}");
+            HideMenu(); // とりあえずメニューを閉じる
+        }
+    }
+
+    /// <summary>
+    /// メニューラベルのタイプを取得する
+    /// </summary>
+    private string GetMenuType(string label)
+    {
+        if (WingMenuCommandHandler.IsBuiltinFunction(label))
+        {
+            return "builtin";
+        }
+        else if (label == "placeholder")
+        {
+            return "placeholder";
+        }
+        else
+        {
+            return "future_iot";
+        }
+    }
+
+    /// <summary>
+    /// 羽アイテムを再作成する（設定変更時）
+    /// </summary>
+    private void RecreateWingItems()
+    {
+        Debug.Log("[WingMenu] Recreating wing items with new configuration");
+        
+        // 既存の羽を削除
+        foreach (var item in wingItems)
+        {
+            if (item.wingObject != null)
+            {
+                DestroyImmediate(item.wingObject);
+            }
+        }
+        wingItems.Clear();
+        
+        // 新しい設定で羽を再作成
+        CreateWingItemsWithConfig();
+        
+        // メニューが開いている場合は再表示
+        if (isMenuOpen)
+        {
+            AdjustMenuSystem();
+            UpdateWingVisibility();
+        }
+    }
+
+    /// <summary>
+    /// 設定を考慮して羽アイテムを作成する
+    /// </summary>
+    private void CreateWingItemsWithConfig()
+    {
+        // 左側の羽を作成
+        for (int i = 0; i < leftWingCount; i++)
+        {
+            var wingItem = new WingMenuItem();
+            
+            wingItem.wingObject = CreateWingMesh($"Wing_Left_{i + 1}");
+            wingItem.wingObject.transform.SetParent(menuContainer.transform);
+            
+            float angle = GetWingAngleWithConfig(i, true);
+            float radius = menuRadius;
+            
+            wingItem.targetPosition = new Vector3(
+                -Mathf.Cos(angle) * radius - 0.5f,
+                -Mathf.Sin(angle) * radius * 0.8f,
+                0.0f
+            );
+            wingItem.targetRotation = Quaternion.Euler(0, 0, angle * Mathf.Rad2Deg - 45);
+            
+            // ラベルとアクションを設定
+            string label = i < menuLabels.Length ? menuLabels[i] : "placeholder";
+            if (string.IsNullOrEmpty(label)) label = "placeholder";
+            
+            wingItem.label = label;
+            UpdateWingAction(wingItems.Count, label);
+            
+            wingItems.Add(wingItem);
+        }
+        
+        // 右側の羽を作成
+        for (int i = 0; i < rightWingCount; i++)
+        {
+            var wingItem = new WingMenuItem();
+            
+            wingItem.wingObject = CreateWingMesh($"Wing_Right_{i + 1}");
+            wingItem.wingObject.transform.SetParent(menuContainer.transform);
+            
+            float angle = GetWingAngleWithConfig(i, false);
+            float radius = menuRadius;
+            
+            wingItem.targetPosition = new Vector3(
+                Mathf.Cos(angle) * radius + 0.5f,
+                -Mathf.Sin(angle) * radius * 0.8f,
+                0.0f
+            );
+            wingItem.targetRotation = Quaternion.Euler(0, 0, -angle * Mathf.Rad2Deg + 45);
+            
+            // ラベルとアクションを設定
+            int labelIndex = leftWingCount + i;
+            string label = labelIndex < menuLabels.Length ? menuLabels[labelIndex] : "placeholder";
+            if (string.IsNullOrEmpty(label)) label = "placeholder";
+            
+            wingItem.label = label;
+            UpdateWingAction(wingItems.Count, label);
+            
+            wingItems.Add(wingItem);
+        }
+    }
+
+    /// <summary>
+    /// 設定を考慮した羽の角度を計算する
+    /// </summary>
+    private float GetWingAngleWithConfig(int index, bool isLeft)
+    {
+        int wingCount = isLeft ? leftWingCount : rightWingCount;
+        if (wingCount <= 1) return angleStart * Mathf.Deg2Rad;
+        
+        float startAngle = angleStart;
+        float endAngle = angleStart + (angleDelta * (wingCount - 1));
+        
+        return Mathf.Lerp(startAngle, endAngle, index / (float)(wingCount - 1)) * Mathf.Deg2Rad;
+    }
+
+    /// <summary>
+    /// HTTP経由で羽の形状を設定する（共通設定）
+    /// </summary>
+    public void ConfigureShapeViaHttp(float? length, float? edge, float? modifier)
+    {
+        Debug.Log($"[WingMenu] ConfigureShapeViaHttp called - length: {length}, edge: {edge}, modifier: {modifier}");
+        
+        bool needsRecreate = false;
+        
+        if (length.HasValue && length.Value != bladeLength)
+        {
+            bladeLength = length.Value;
+            // 共通設定の場合は左右も同期
+            bladeLeftLength = length.Value;
+            bladeRightLength = length.Value;
+            needsRecreate = true;
+        }
+        
+        if (edge.HasValue && edge.Value != bladeEdge)
+        {
+            bladeEdge = edge.Value;
+            // 共通設定の場合は左右も同期
+            bladeLeftEdge = edge.Value;
+            bladeRightEdge = edge.Value;
+            needsRecreate = true;
+        }
+        
+        if (modifier.HasValue && modifier.Value != bladeModifier)
+        {
+            bladeModifier = modifier.Value;
+            // 共通設定の場合は左右も同期
+            bladeLeftModifier = modifier.Value;
+            bladeRightModifier = modifier.Value;
+            needsRecreate = true;
+        }
+        
+        // 共通設定モードに切り替え
+        useIndependentShapes = false;
+        
+        if (needsRecreate)
+        {
+            RecreateWingMeshes();
+        }
+    }
+
+    /// <summary>
+    /// HTTP経由で羽の形状を設定する（左右独立設定）
+    /// </summary>
+    public void ConfigureShapeIndependentViaHttp(
+        float? leftLength, float? leftEdge, float? leftModifier,
+        float? rightLength, float? rightEdge, float? rightModifier)
+    {
+        Debug.Log($"[WingMenu] ConfigureShapeIndependentViaHttp called - " +
+                 $"left: length={leftLength}, edge={leftEdge}, modifier={leftModifier}, " +
+                 $"right: length={rightLength}, edge={rightEdge}, modifier={rightModifier}");
+        
+        bool needsRecreate = false;
+        
+        // 左側パラメータ
+        if (leftLength.HasValue && leftLength.Value != bladeLeftLength)
+        {
+            bladeLeftLength = leftLength.Value;
+            needsRecreate = true;
+        }
+        
+        if (leftEdge.HasValue && leftEdge.Value != bladeLeftEdge)
+        {
+            bladeLeftEdge = leftEdge.Value;
+            needsRecreate = true;
+        }
+        
+        if (leftModifier.HasValue && leftModifier.Value != bladeLeftModifier)
+        {
+            bladeLeftModifier = leftModifier.Value;
+            needsRecreate = true;
+        }
+        
+        // 右側パラメータ
+        if (rightLength.HasValue && rightLength.Value != bladeRightLength)
+        {
+            bladeRightLength = rightLength.Value;
+            needsRecreate = true;
+        }
+        
+        if (rightEdge.HasValue && rightEdge.Value != bladeRightEdge)
+        {
+            bladeRightEdge = rightEdge.Value;
+            needsRecreate = true;
+        }
+        
+        if (rightModifier.HasValue && rightModifier.Value != bladeRightModifier)
+        {
+            bladeRightModifier = rightModifier.Value;
+            needsRecreate = true;
+        }
+        
+        // 独立設定モードに切り替え
+        useIndependentShapes = true;
+        
+        if (needsRecreate)
+        {
+            RecreateWingMeshes();
+        }
+    }
+
+    /// <summary>
+    /// 羽のメッシュを再作成する（形状変更時）
+    /// </summary>
+    private void RecreateWingMeshes()
+    {
+        Debug.Log("[WingMenu] Recreating wing meshes with new shape configuration");
+        
+        // 既存の羽のメッシュを更新
+        for (int i = 0; i < wingItems.Count; i++)
+        {
+            if (wingItems[i].wingObject != null)
+            {
+                var meshFilter = wingItems[i].wingObject.GetComponent<MeshFilter>();
+                if (meshFilter != null)
+                {
+                    // 新しい形状でメッシュを再生成
+                    meshFilter.mesh = CreateWingMeshWithShape(i);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 形状パラメータを考慮した羽のメッシュを作成する
+    /// </summary>
+    private Mesh CreateWingMeshWithShape(int wingIndex)
+    {
+        Mesh mesh = new Mesh();
+        
+        // 左右判定
+        bool isLeft = wingIndex < leftWingCount;
+        int localIndex = isLeft ? wingIndex : wingIndex - leftWingCount;
+        
+        // 使用するパラメータを決定
+        float currentLength, currentEdge, currentModifier;
+        
+        if (useIndependentShapes)
+        {
+            // 左右独立設定
+            if (isLeft)
+            {
+                currentLength = bladeLeftLength;
+                currentEdge = bladeLeftEdge;
+                currentModifier = bladeLeftModifier;
+            }
+            else
+            {
+                currentLength = bladeRightLength;
+                currentEdge = bladeRightEdge;
+                currentModifier = bladeRightModifier;
+            }
+        }
+        else
+        {
+            // 共通設定
+            currentLength = bladeLength;
+            currentEdge = bladeEdge;
+            currentModifier = bladeModifier;
+        }
+        
+        // localIndexに基づいてサイズを調整
+        float sizeMultiplier = 1.0f - (currentModifier * localIndex);
+        
+        // 基本サイズ
+        float baseWidth = 0.4f * sizeMultiplier;
+        float baseHeight = 1.1f * currentLength * sizeMultiplier;
+        
+        // currentEdgeに基づいて先端の幅を計算
+        float tipWidth = baseWidth * currentEdge;
+        
+        // 頂点を計算（羽の形状）
+        Vector3[] vertices = new Vector3[]
+        {
+            // 表面
+            new Vector3(-baseWidth * 0.5f, -baseHeight * 0.55f, 0),  // 左下（根元）
+            new Vector3(baseWidth * 0.5f, -baseHeight * 0.55f, 0),   // 右下（根元）
+            new Vector3(tipWidth * 0.5f, baseHeight * 0.45f, 0),     // 右上（先端）
+            new Vector3(-tipWidth * 0.5f, baseHeight * 0.45f, 0),    // 左上（先端）
+            // 裏面（同じ頂点を複製）
+            new Vector3(-baseWidth * 0.5f, -baseHeight * 0.55f, 0),  // 左下（根元）
+            new Vector3(baseWidth * 0.5f, -baseHeight * 0.55f, 0),   // 右下（根元）
+            new Vector3(tipWidth * 0.5f, baseHeight * 0.45f, 0),     // 右上（先端）
+            new Vector3(-tipWidth * 0.5f, baseHeight * 0.45f, 0)     // 左上（先端）
+        };
+        
+        // 三角形（表面と裏面の両方）
+        int[] triangles = new int[] { 
+            // 表面
+            0, 2, 1, 0, 3, 2,
+            // 裏面（逆順）
+            4, 5, 6, 4, 6, 7
+        };
+        
+        // UV座標
+        Vector2[] uv = new Vector2[]
+        {
+            // 表面
+            new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1),
+            // 裏面
+            new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1)
+        };
+        
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+        mesh.uv = uv;
+        mesh.RecalculateNormals();
+        
+        return mesh;
+    }
+
+    /// <summary>
+    /// HTTP経由で羽の色を設定する
+    /// </summary>
+    /// <param name="normal">通常時の色モード</param>
+    /// <param name="animation">アニメーション時の色モード</param>
+    /// <param name="hoverNoCmd">ホバー時（コマンド無）の色モード</param>
+    /// <param name="hoverWithCmd">ホバー時（コマンド有）の色モード</param>
+    public void SetColorsViaHttp(string normal, string animation, string hoverNoCmd, string hoverWithCmd)
+    {
+        Debug.Log($"[WingMenu] SetColorsViaHttp called - normal: {normal}, animation: {animation}, hoverNoCmd: {hoverNoCmd}, hoverWithCmd: {hoverWithCmd}");
+        
+        normalColorMode = normal ?? "white";
+        animationColorMode = animation ?? "white";
+        hoverNoCommandColorMode = hoverNoCmd ?? "lightblue";
+        hoverWithCommandColorMode = hoverWithCmd ?? "yellow";
+        
+        // 色設定を即座に反映
+        UpdateWingColors();
+    }
+
+    /// <summary>
+    /// 羽の色を更新する
+    /// </summary>
+    private void UpdateWingColors()
+    {
+        if (!isMenuOpen || wingItems == null) return;
+        
+        for (int i = 0; i < wingItems.Count; i++)
+        {
+            if (wingItems[i].wingObject == null) continue;
+            
+            var renderer = wingItems[i].wingObject.GetComponent<MeshRenderer>();
+            if (renderer == null || renderer.material == null) continue;
+            
+            Color targetColor = GetWingColor(i);
+            renderer.material.color = targetColor;
+        }
+    }
+
+    /// <summary>
+    /// 指定された羽のインデックスに対する適切な色を取得する
+    /// </summary>
+    /// <param name="wingIndex">羽のインデックス</param>
+    /// <returns>適用すべき色</returns>
+    private Color GetWingColor(int wingIndex)
+    {
+        // ホバー中の場合
+        if (hoveredIndex == wingIndex)
+        {
+            bool hasCommand = HasCommand(wingIndex);
+            string colorMode = hasCommand ? hoverWithCommandColorMode : hoverNoCommandColorMode;
+            
+            if (colorMode == "gaming")
+            {
+                return GetRainbowColor(wingIndex, Time.time);
+            }
+            return ColorModeMap.ContainsKey(colorMode) ? ColorModeMap[colorMode] : Color.white;
+        }
+        
+        // アニメーション中の場合
+        if (isAnimating)
+        {
+            if (animationColorMode == "gaming")
+            {
+                return GetRainbowColor(wingIndex, Time.time);
+            }
+            return ColorModeMap.ContainsKey(animationColorMode) ? ColorModeMap[animationColorMode] : Color.white;
+        }
+        
+        // 通常時
+        if (normalColorMode == "gaming")
+        {
+            return GetRainbowColor(wingIndex, Time.time);
+        }
+        return ColorModeMap.ContainsKey(normalColorMode) ? ColorModeMap[normalColorMode] : Color.white;
+    }
+
+    /// <summary>
+    /// 指定された羽にコマンドが定義されているかを判定する
+    /// </summary>
+    /// <param name="wingIndex">羽のインデックス</param>
+    /// <returns>コマンドが定義されている場合はtrue</returns>
+    private bool HasCommand(int wingIndex)
+    {
+        if (wingIndex < 0 || wingIndex >= wingItems.Count) return false;
+        
+        string label = wingItems[wingIndex].label;
+        
+        // Built-in functionsはコマンド有り
+        if (WingMenuCommandHandler.IsBuiltinFunction(label)) return true;
+        
+        // placeholderはコマンド無し
+        if (label == "placeholder") return false;
+        
+        // その他のカスタムメニューはコマンド有り
+        return true;
+    }
+
+    /// <summary>
+    /// VRM読み込み後の色のくすみ対策：全ての羽にEmissionを適用
+    /// </summary>
+    private void ApplyPostVRMEmission()
+    {
+        Debug.Log("[WingMenu] Applying post-VRM emission to brighten wings");
+        
+        if (wingItems == null) return;
+        
+        for (int i = 0; i < wingItems.Count; i++)
+        {
+            if (wingItems[i].wingObject == null) continue;
+            
+            var renderer = wingItems[i].wingObject.GetComponent<MeshRenderer>();
+            if (renderer == null || renderer.material == null) continue;
+            
+            // VRM読み込み後の明度補正用のEmissionを適用
+            ApplyBrightnessEmission(renderer.material);
+        }
+    }
+    
+    /// <summary>
+    /// 明度補正用のEmissionを適用する
+    /// </summary>
+    /// <param name="material">対象のマテリアル</param>
+    private void ApplyBrightnessEmission(Material material)
+    {
+        if (material == null) return;
+        
+        // Emissionを有効にして適切な明度の白色光を追加
+        material.EnableKeyword("_EMISSION");
+        
+        // RGB値180,180,180相当のEmissionを設定（255で割って正規化: 180/255 ≈ 0.706）
+        Color emissionColor = new Color(0.706f, 0.706f, 0.706f, 1.0f);
+        material.SetColor("_EmissionColor", emissionColor);
+        
+        Debug.Log($"[WingMenu] Applied brightness emission to material: {material.name}, emission: {emissionColor} (RGB: 180,180,180)");
+    }
+
+    #endregion
 }
