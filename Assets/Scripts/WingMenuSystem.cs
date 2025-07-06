@@ -21,9 +21,9 @@ public class WingMenuSystem : MonoBehaviour
     private float menuRadius = 2.0f;
     private float animationDuration = 0.3f;
     private float menuDistance = 3.0f; // カメラからの距離
-    private Color wingColor = new Color(0.3f, 0.7f, 1f, 1f);  // 明るい青色に変更
-    private Color hoverColor = new Color(1f, 1f, 0.3f, 1f);   // 黄色に変更
-    private Color exitColor = new Color(1f, 0.3f, 0.3f, 1f);  // 明るい赤色
+    private Color wingColor = new Color(0.3f, 0.7f, 1f, 1f);
+    private Color hoverColor = new Color(1f, 1f, 0.3f, 1f);
+    private Color exitColor = new Color(1f, 0.3f, 0.3f, 1f);
 
     // 内部状態
     private bool isMenuOpen = false;
@@ -77,8 +77,19 @@ public class WingMenuSystem : MonoBehaviour
         // 羽メニューアイテムを作成
         CreateWingItems();
         
+        // VRMLoader の OnVRMLoadComplete イベントにメニュー調整を登録
+        if (vrmLoader != null) {
+            vrmLoader.OnVRMLoadComplete += OnVrmModelLoaded;
+        }
+        
         // 初期状態では非表示
         HideMenuImmediate();
+    }
+
+    private void OnDestroy() {
+        if (vrmLoader != null) {
+            vrmLoader.OnVRMLoadComplete -= OnVrmModelLoaded;
+        }
     }
 
     void Update()
@@ -114,12 +125,44 @@ public class WingMenuSystem : MonoBehaviour
             // 羽だけを画面中央に表示
             ShowMenuAtCenter();
         }
+        
+    // デバッグ用：Tキーでメニューを強制表示/非表示
+    if (Input.GetKeyDown(KeyCode.T))
+    {
+        Debug.Log("[WingMenu] T key pressed - forcing menu toggle for debug");
+        if (isMenuOpen)
+        {
+            HideMenu();
+        }
+        else
+        {
+            ShowMenu();
+            // デバッグ情報も出力
+            StartCoroutine(DelayedDebugInfo());
+        }
+    }
+    
+    // デバッグ用：Uキーで大きなテストメニューを表示
+    if (Input.GetKeyDown(KeyCode.U))
+    {
+        Debug.Log("[WingMenu] U key pressed - showing large test menu");
+        ShowLargeTestMenu();
+    }
+        
+        // デバッグ用：Yキーでデバッグ情報を出力
+        if (Input.GetKeyDown(KeyCode.Y))
+        {
+            Debug.Log("[WingMenu] Y key pressed - outputting debug info");
+            DebugMenuVisibility();
+        }
     }
 
     private void CreateMenuContainer()
     {
         menuContainer = new GameObject("WingMenuContainer");
         menuContainer.transform.SetParent(transform);
+        // コンテナ全体のスケールを1,1,1に設定
+        menuContainer.transform.localScale = Vector3.one;
     }
 
     private void CreateWingItems()
@@ -141,7 +184,7 @@ public class WingMenuSystem : MonoBehaviour
             wingItem.targetPosition = new Vector3(
                 -Mathf.Cos(angle) * radius - 0.5f,  // 左翼全体を左にオフセット
                 -Mathf.Sin(angle) * radius * 0.8f,
-                -2.0f  // Z座標を前面に変更
+                0.0f  // Z座標はメニューコンテナ基準で0（コンテナ自体がカメラ前面に配置される）
             );
             wingItem.targetRotation = Quaternion.Euler(0, 0, angle * Mathf.Rad2Deg - 45);
             
@@ -170,7 +213,7 @@ public class WingMenuSystem : MonoBehaviour
             wingItem.targetPosition = new Vector3(
                 Mathf.Cos(angle) * radius + 0.5f,   // 右翼全体を右にオフセット
                 -Mathf.Sin(angle) * radius * 0.8f,
-                -2.0f  // Z座標を前面に変更
+                0.0f  // Z座標はメニューコンテナ基準で0（コンテナ自体がカメラ前面に配置される）
             );
             wingItem.targetRotation = Quaternion.Euler(0, 0, -angle * Mathf.Rad2Deg + 45);
             
@@ -211,28 +254,39 @@ public class WingMenuSystem : MonoBehaviour
         MeshFilter meshFilter = wing.AddComponent<MeshFilter>();
         MeshRenderer meshRenderer = wing.AddComponent<MeshRenderer>();
         
-        // 羽の形状を作成（シンプルな四角形を変形）
+        // 羽の形状を作成（両面表示対応）
         Mesh mesh = new Mesh();
         
         // 頂点（羽の形に変形した四角形 - より羽らしい形状に）
         Vector3[] vertices = new Vector3[]
         {
-            new Vector3(-0.2f, -0.6f, 0) * wingScale,  // 左下（根元）
-            new Vector3(0.2f, -0.6f, 0) * wingScale,   // 右下（根元）
-            new Vector3(0.3f, 0.5f, 0) * wingScale,    // 右上（先端）
-            new Vector3(-0.3f, 0.5f, 0) * wingScale    // 左上（先端）
+            // 表面
+            new Vector3(-0.2f, -0.6f, 0),  // 左下（根元）
+            new Vector3(0.2f, -0.6f, 0),   // 右下（根元）
+            new Vector3(0.3f, 0.5f, 0),    // 右上（先端）
+            new Vector3(-0.3f, 0.5f, 0),   // 左上（先端）
+            // 裏面（同じ頂点を複製）
+            new Vector3(-0.2f, -0.6f, 0),  // 左下（根元）
+            new Vector3(0.2f, -0.6f, 0),   // 右下（根元）
+            new Vector3(0.3f, 0.5f, 0),    // 右上（先端）
+            new Vector3(-0.3f, 0.5f, 0)    // 左上（先端）
         };
         
-        // 三角形
-        int[] triangles = new int[] { 0, 2, 1, 0, 3, 2 };
+        // 三角形（表面と裏面の両方）
+        int[] triangles = new int[] { 
+            // 表面
+            0, 2, 1, 0, 3, 2,
+            // 裏面（逆順）
+            4, 5, 6, 4, 6, 7
+        };
         
         // UV座標
         Vector2[] uv = new Vector2[]
         {
-            new Vector2(0, 0),
-            new Vector2(1, 0),
-            new Vector2(1, 1),
-            new Vector2(0, 1)
+            // 表面
+            new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1),
+            // 裏面
+            new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1)
         };
         
         mesh.vertices = vertices;
@@ -242,17 +296,68 @@ public class WingMenuSystem : MonoBehaviour
         
         meshFilter.mesh = mesh;
         
-        // マテリアル設定（より確実なシェーダーに変更）
+        // マテリアル設定（確実に表示されるシェーダーを使用）
+        Material material = null;
+        
+        // 1. まずUnlit/Colorを試す（最も確実）
         Shader shader = Shader.Find("Unlit/Color");
-        if (shader == null)
+        if (shader != null)
         {
+            material = new Material(shader);
+            material.color = wingColor;
+            // カリングを無効にして両面表示
+            if (material.HasProperty("_Cull"))
+            {
+                material.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+            }
+            Debug.Log($"[WingMenu] Using Unlit/Color shader with color: {wingColor}");
+        }
+        else
+        {
+            // 2. Standardを試す
             shader = Shader.Find("Standard");
-            Debug.LogWarning("[WingMenu] Unlit/Color shader not found, using Standard");
+            if (shader != null)
+            {
+                material = new Material(shader);
+                material.color = wingColor;
+                // Opaqueモードに設定
+                material.SetFloat("_Mode", 0); // Opaque
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                material.SetInt("_ZWrite", 1);
+                material.DisableKeyword("_ALPHATEST_ON");
+                material.DisableKeyword("_ALPHABLEND_ON");
+                material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.renderQueue = -1;
+                // カリングを無効にして両面表示
+                if (material.HasProperty("_Cull"))
+                {
+                    material.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+                }
+                Debug.Log($"[WingMenu] Using Standard shader with color: {wingColor}");
+            }
+            else
+            {
+                // 3. 最後の手段でSprites/Default
+                shader = Shader.Find("Sprites/Default");
+                if (shader != null)
+                {
+                    material = new Material(shader);
+                    material.color = wingColor;
+                    Debug.LogWarning("[WingMenu] Using Sprites/Default shader as fallback");
+                }
+                else
+                {
+                    Debug.LogError("[WingMenu] No suitable shader found!");
+                    return null;
+                }
+            }
         }
         
-        Material material = new Material(shader);
-        material.color = wingColor;
         meshRenderer.material = material;
+        
+        // レンダリング順序を強制的に設定
+        meshRenderer.sortingOrder = 100; // 高い値で前面に表示
         
         // デバッグ情報
         Debug.Log($"[WingMenu] Created wing: {name}, layer: {wing.layer} ({LayerMask.LayerToName(wing.layer)})");
@@ -403,43 +508,13 @@ public class WingMenuSystem : MonoBehaviour
         isMenuOpen = true;
         menuContainer.SetActive(true);
         
-        // カメラの前にメニューを配置
-        if (mainCamera != null)
-        {
-            UpdateMenuTransform();
-
-            Debug.Log($"[WingMenu] Menu positioned in front of camera: {menuContainer.transform.position}");
-            Debug.Log($"[WingMenu] Camera position: {mainCamera.transform.position}, forward: {mainCamera.transform.forward}");
-        }
-        else
-        {
-            // カメラがない場合は原点に配置
-            menuContainer.transform.position = Vector3.zero;
-            Debug.Log("[WingMenu] No camera found, menu at origin");
-        }
+        // 位置とスケールを適切に設定
+        AdjustMenuSystem();
         
-        // デバッグ：羽の状態を確認（アニメーション前）
-        Debug.Log($"[WingMenu] Menu container active: {menuContainer.activeSelf}");
-        Debug.Log($"[WingMenu] Wing count: {wingItems.Count}");
-        for (int i = 0; i < wingItems.Count; i++)
-        {
-            var wing = wingItems[i];
-            Debug.Log($"[WingMenu] Wing {i} BEFORE animation: active={wing.wingObject.activeSelf}, " +
-                     $"pos={wing.wingObject.transform.position}, " +
-                     $"scale={wing.wingObject.transform.localScale}");
-        }
+        Debug.Log($"[WingMenu] Menu positioned at: {menuContainer.transform.position}, scale: {menuContainer.transform.localScale}");
         
-        // テスト：アニメーションなしで即座に表示
-        bool useAnimation = false; // falseにするとアニメーションなし
-        if (useAnimation)
-        {
-            StartCoroutine(AnimateMenuOpen());
-        }
-        else
-        {
-            // アニメーションなしで即座に表示
-            ShowMenuImmediate();
-        }
+        // アニメーション付きで表示
+        StartCoroutine(AnimateMenuOpen());
     }
 
     private void ShowMenuAtCenter()
@@ -449,8 +524,11 @@ public class WingMenuSystem : MonoBehaviour
         isMenuOpen = true;
         menuContainer.SetActive(true);
         
-        // 画面中央に配置
+        // VRM読み込み前は画面中央（0,0,0）に配置、スケール1,1,1
         menuContainer.transform.position = new Vector3(0, 0, 0);
+        menuContainer.transform.localScale = Vector3.one;
+        
+        Debug.Log("[WingMenu] ShowMenuAtCenter - VRM not loaded, position: (0,0,0), scale: (1,1,1)");
         
         StartCoroutine(AnimateMenuOpen());
     }
@@ -588,20 +666,73 @@ public class WingMenuSystem : MonoBehaviour
         HideMenu();
     }
 
-    private void LateUpdate()
-    {
-        if (isMenuOpen && mainCamera != null)
-        {
-            UpdateMenuTransform();
-        }
-    }
+    // LateUpdate()を削除 - カメラにくっつかないように
+    // private void LateUpdate()
+    // {
+    //     if (isMenuOpen && mainCamera != null)
+    //     {
+    //         UpdateMenuTransform();
+    //     }
+    // }
 
     private void UpdateMenuTransform()
     {
-        Vector3 forward = mainCamera.transform.forward;
-        Vector3 position = mainCamera.transform.position + forward * menuDistance;
-        menuContainer.transform.position = position;
-        menuContainer.transform.rotation = Quaternion.LookRotation(-forward, Vector3.up);
+        AdjustMenuSystem();
+    }
+    
+    private void AdjustMenuSystem()
+    {
+        if (mainCamera == null) {
+            Debug.LogError("[WingMenu] Main camera not found for menu adjustment");
+            return;
+        }
+
+        // VRM読み込み後は適切なスケールと位置に調整
+        if (vrmLoader != null && vrmLoader.LoadedModel != null) {
+            // VRMのheadBoneの位置を取得（VRMLoader.csのAdjustCamera()と同じ方法）
+            Transform headBone = GetHeadBone(vrmLoader.LoadedModel);
+            
+            if (headBone != null) {
+                // headBoneの位置を基準にメニューを配置
+                Vector3 headPosition = headBone.position;
+                Vector3 modelForward = GetModelForward(vrmLoader.LoadedModel);
+                
+                // VRoidモデルの場合は向きを反転
+                if (IsVroidModel(vrmLoader.LoadedModel)) {
+                    modelForward = -vrmLoader.LoadedModel.transform.forward;
+                }
+                
+                // メニューをVRMの後ろ（背景の手前）に配置
+                // Z座標を-2に固定
+                Vector3 menuPosition = new Vector3(headPosition.x, headPosition.y - 0.3f, -2.0f);
+                
+                menuContainer.transform.position = menuPosition;
+                menuContainer.transform.localScale = Vector3.one * wingScale; // wingScaleを使用
+                
+                // メニューをカメラの方向に向ける（カメラが180度回転しているので調整）
+                Vector3 cameraDirection = (mainCamera.transform.position - menuPosition).normalized;
+                // カメラの実際の向きを考慮してメニューを向ける
+                Vector3 menuForward = -mainCamera.transform.forward; // カメラが見ている方向の逆
+                menuContainer.transform.rotation = Quaternion.LookRotation(menuForward, Vector3.up);
+                
+                Debug.Log($"[WingMenu] VRM loaded - Menu positioned at: {menuPosition}, scale: {wingScale}, headPos: {headPosition}");
+            } else {
+                // headBoneが見つからない場合はカメラ基準で配置
+                Vector3 menuPosition = mainCamera.transform.position + mainCamera.transform.forward * (mainCamera.nearClipPlane + 0.05f);
+                menuContainer.transform.position = menuPosition;
+                menuContainer.transform.localScale = Vector3.one * wingScale;
+                menuContainer.transform.rotation = Quaternion.identity;
+                
+                Debug.Log($"[WingMenu] VRM loaded but no headBone - Menu positioned at: {menuPosition}, scale: {wingScale}");
+            }
+        } else {
+            // VRM読み込み前：原点に配置、スケール1,1,1
+            menuContainer.transform.position = Vector3.zero;
+            menuContainer.transform.localScale = Vector3.one;
+            menuContainer.transform.rotation = Quaternion.identity;
+            
+            Debug.Log("[WingMenu] VRM not loaded - Menu at origin, scale: 1,1,1");
+        }
     }
     
     // MovableWindowとの競合回避用
@@ -648,5 +779,147 @@ public class WingMenuSystem : MonoBehaviour
         }
         
         isAnimating = false;
+    }
+
+    private void OnVrmModelLoaded(GameObject vrmModel) {
+        Debug.Log("[WingMenu] VRM model loaded - adjusting menu system");
+        if (isMenuOpen) {
+            AdjustMenuSystem();
+            // デバッグ情報を出力
+            DebugMenuVisibility();
+        }
+    }
+
+    // デバッグ用：遅延してデバッグ情報を出力
+    private IEnumerator DelayedDebugInfo() {
+        yield return new WaitForSeconds(0.5f); // アニメーション完了を待つ
+        DebugMenuVisibility();
+    }
+
+    // デバッグ用：メニューの可視性をチェック
+    private void DebugMenuVisibility() {
+        Debug.Log("=== WingMenu Visibility Debug ===");
+        
+        // カメラ情報
+        if (mainCamera != null) {
+            Debug.Log($"Camera: {mainCamera.name}");
+            Debug.Log($"Camera Position: {mainCamera.transform.position}");
+            Debug.Log($"Camera Rotation: {mainCamera.transform.rotation.eulerAngles}");
+            Debug.Log($"Camera Culling Mask: {mainCamera.cullingMask} (binary: {System.Convert.ToString(mainCamera.cullingMask, 2)})");
+            Debug.Log($"UI Layer (5): {(mainCamera.cullingMask & (1 << 5)) != 0}");
+            Debug.Log($"Menu Layer ({menuLayer}): {(mainCamera.cullingMask & (1 << menuLayer)) != 0}");
+        }
+        
+        // メニューコンテナ情報
+        if (menuContainer != null) {
+            Debug.Log($"MenuContainer Position: {menuContainer.transform.position}");
+            Debug.Log($"MenuContainer Scale: {menuContainer.transform.localScale}");
+            Debug.Log($"MenuContainer Active: {menuContainer.activeInHierarchy}");
+        }
+        
+        // 各羽の情報
+        for (int i = 0; i < wingItems.Count; i++) {
+            var item = wingItems[i];
+            if (item.wingObject != null) {
+                var renderer = item.wingObject.GetComponent<MeshRenderer>();
+                Debug.Log($"Wing {i}: Active={item.wingObject.activeInHierarchy}, " +
+                         $"Layer={item.wingObject.layer}, " +
+                         $"WorldPos={item.wingObject.transform.position}, " +
+                         $"LocalScale={item.wingObject.transform.localScale}, " +
+                         $"RendererEnabled={renderer?.enabled}, " +
+                         $"Material={renderer?.material?.name}, " +
+                         $"RenderQueue={renderer?.material?.renderQueue}");
+                
+                // カメラからの距離
+                if (mainCamera != null) {
+                    float distance = Vector3.Distance(mainCamera.transform.position, item.wingObject.transform.position);
+                    Debug.Log($"Wing {i} distance from camera: {distance}");
+                }
+            }
+        }
+        
+        Debug.Log("=== End Debug ===");
+    }
+
+    // デバッグ用：大きなテストメニューを表示
+    private void ShowLargeTestMenu() {
+        if (isAnimating) return;
+        
+        Debug.Log("[WingMenu] ShowLargeTestMenu - creating large visible menu for testing");
+        
+        isMenuOpen = true;
+        menuContainer.SetActive(true);
+        
+        // カメラの正面に大きく表示
+        Vector3 testPosition = mainCamera.transform.position + mainCamera.transform.forward * 2.0f;
+        menuContainer.transform.position = testPosition;
+        menuContainer.transform.localScale = Vector3.one * 2.0f; // 大きく表示
+        menuContainer.transform.rotation = Quaternion.LookRotation(-mainCamera.transform.forward, Vector3.up);
+        
+        // 各羽を明るい色で即座に表示
+        for (int i = 0; i < wingItems.Count; i++) {
+            var item = wingItems[i];
+            item.wingObject.transform.localPosition = item.targetPosition;
+            item.wingObject.transform.localScale = Vector3.one;
+            item.wingObject.transform.localRotation = item.targetRotation;
+            
+            // 明るい色に変更
+            var renderer = item.wingObject.GetComponent<MeshRenderer>();
+            if (renderer != null) {
+                renderer.material.color = new Color(1f, 0f, 1f, 1f); // マゼンタ色で目立つように
+            }
+            
+            Debug.Log($"[WingMenu] Test Wing {i}: WorldPos={item.wingObject.transform.position}, " +
+                     $"LocalPos={item.wingObject.transform.localPosition}, " +
+                     $"Scale={item.wingObject.transform.localScale}");
+        }
+        
+        Debug.Log($"[WingMenu] Large test menu positioned at: {testPosition}, scale: 2.0");
+        
+        // デバッグ情報も出力
+        StartCoroutine(DelayedDebugInfo());
+    }
+
+    // VRMLoader.csと同じヘルパーメソッドを追加
+    private Transform GetHeadBone(GameObject model) {
+        Animator animator = model.GetComponent<Animator>();
+        if (animator != null && animator.isHuman) {
+            Transform headBone = animator.GetBoneTransform(HumanBodyBones.Head);
+            if (headBone != null) return headBone;
+        }
+        return FindNodeByName(model.transform, new string[] { "Head", "J_Bip_C_Head" });
+    }
+
+    private Vector3 GetModelForward(GameObject model) {
+        Animator animator = model.GetComponent<Animator>();
+        if (animator != null && animator.isHuman) {
+            Transform hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+            if (hips != null) return hips.forward;
+        }
+
+        // 名前マッチでヒップノードを取得（念のためフォールバック）
+        Transform hipsNode = FindNodeByName(model.transform, new string[] { "Hips", "Root", "J_Bip_C_Hips" });
+        return hipsNode != null ? hipsNode.forward : Vector3.forward;
+    }
+
+    private bool IsVroidModel(GameObject model) {
+        Transform hipsNode = FindNodeByName(model.transform, new string[] { "Root", "J_Bip_C_Hips" });
+        Transform headNode = FindNodeByName(model.transform, new string[] { "Head", "J_Bip_C_Head" });
+        return (hipsNode != null && headNode != null);
+    }
+
+    private Transform FindNodeByName(Transform root, string[] keywords) {
+        foreach (Transform child in root) {
+            string name = child.name.ToLowerInvariant();
+            foreach (string kw in keywords) {
+                if (name.Contains(kw.ToLowerInvariant())) {
+                    return child;
+                }
+            }
+            // 再帰検索
+            var hit = FindNodeByName(child, keywords);
+            if (hit != null) return hit;
+        }
+        return null;
     }
 }
