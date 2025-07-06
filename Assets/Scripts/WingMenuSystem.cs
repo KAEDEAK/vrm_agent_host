@@ -20,6 +20,7 @@ public class WingMenuSystem : MonoBehaviour
     private float wingScale = 0.5f;
     private float menuRadius = 2.0f;
     private float animationDuration = 0.3f;
+    private float menuDistance = 3.0f; // カメラからの距離
     private Color wingColor = new Color(0.3f, 0.7f, 1f, 1f);  // 明るい青色に変更
     private Color hoverColor = new Color(1f, 1f, 0.3f, 1f);   // 黄色に変更
     private Color exitColor = new Color(1f, 0.3f, 0.3f, 1f);  // 明るい赤色
@@ -405,17 +406,10 @@ public class WingMenuSystem : MonoBehaviour
         // カメラの前にメニューを配置
         if (mainCamera != null)
         {
-            // カメラの前方3ユニットの位置に配置
-            Vector3 cameraForward = mainCamera.transform.forward;
-            Vector3 menuPosition = mainCamera.transform.position + cameraForward * 3.0f;
-            menuContainer.transform.position = menuPosition;
-            
-            // メニューをカメラに向ける
-            menuContainer.transform.LookAt(mainCamera.transform);
-            menuContainer.transform.rotation = Quaternion.LookRotation(-cameraForward);
-            
-            Debug.Log($"[WingMenu] Menu positioned in front of camera: {menuPosition}");
-            Debug.Log($"[WingMenu] Camera position: {mainCamera.transform.position}, forward: {cameraForward}");
+            UpdateMenuTransform();
+
+            Debug.Log($"[WingMenu] Menu positioned in front of camera: {menuContainer.transform.position}");
+            Debug.Log($"[WingMenu] Camera position: {mainCamera.transform.position}, forward: {mainCamera.transform.forward}");
         }
         else
         {
@@ -589,9 +583,25 @@ public class WingMenuSystem : MonoBehaviour
     {
         Debug.Log($"Wing menu item {index + 1} clicked (placeholder)");
         // 将来的に機能を追加
-        
+
         // メニューを閉じる（カーソルにくっつく問題を解決）
         HideMenu();
+    }
+
+    private void LateUpdate()
+    {
+        if (isMenuOpen && mainCamera != null)
+        {
+            UpdateMenuTransform();
+        }
+    }
+
+    private void UpdateMenuTransform()
+    {
+        Vector3 forward = mainCamera.transform.forward;
+        Vector3 position = mainCamera.transform.position + forward * menuDistance;
+        menuContainer.transform.position = position;
+        menuContainer.transform.rotation = Quaternion.LookRotation(-forward, Vector3.up);
     }
     
     // MovableWindowとの競合回避用
