@@ -116,7 +116,16 @@ public class WingMenuSystem : MonoBehaviour
     private float bladeRightLength = 1.0f;    // 右側の羽の長さ
     private float bladeRightEdge = 0.5f;      // 右側の形状の減衰率
     private float bladeRightModifier = 0.0f;  // 右側の次の羽のサイズ減少率
-    private bool useIndependentShapes = false; // 左右独立設定を使用するかどうか
+    private bool useIndependentShapes = true; // 左右独立設定を使用するかどうか（デフォルト: true）
+    
+    // blade_splitモードの定義
+    public enum BladeSplitMode
+    {
+        Reset,  // 左右独立（blade_split=true相当）
+        Split,  // 左右リセットされつつも0-360度配置
+        Keep    // 連続（blade_split=false相当）
+    }
+    private BladeSplitMode bladeSplitMode = BladeSplitMode.Reset; // デフォルト: Reset
 
     void Start()
     {
@@ -427,6 +436,12 @@ public class WingMenuSystem : MonoBehaviour
         
         meshRenderer.material = material;
         
+        // VRM読み込み後の場合は、作成直後にEmissionを適用
+        if (vrmLoader != null && vrmLoader.LoadedModel != null)
+        {
+            ApplyBrightnessEmission(material);
+        }
+        
         // レンダリング順序を強制的に設定
         meshRenderer.sortingOrder = 100; // 高い値で前面に表示
         
@@ -694,11 +709,27 @@ public class WingMenuSystem : MonoBehaviour
     {
         Debug.Log("EXIT clicked - closing application");
         
+        // HTTP terminateと同じ確実な終了パスを使用
+        var animationServer = AnimationServer.Instance;
+        if (animationServer != null) {
+            Debug.Log("[WingMenu] Using AnimationServer.InvokeShutdown() for reliable termination with config save");
+            animationServer.InvokeShutdown();
+        } else {
+            Debug.LogWarning("[WingMenu] AnimationServer not found, falling back to direct termination");
+            
+            // フォールバック: 明示的に設定保存してから終了
+            var transparentWindow = FindFirstObjectByType<TransparentWindow>();
+            if (transparentWindow != null) {
+                transparentWindow.SaveWindowBoundsIfNeeded();
+                Debug.Log("[WingMenu] Window bounds saved before fallback termination");
+            }
+            
 #if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
+            UnityEditor.EditorApplication.isPlaying = false;
 #else
-        Application.Quit();
+            Application.Quit();
 #endif
+        }
     }
 
     private void OnPlaceholderClick(int index)
@@ -1818,6 +1849,13 @@ public class WingMenuSystem : MonoBehaviour
             AdjustMenuSystem();
             UpdateWingVisibility();
         }
+        
+        // VRM読み込み後の場合は、Emissionを再適用
+        if (vrmLoader != null && vrmLoader.LoadedModel != null)
+        {
+            Debug.Log("[WingMenu] Reapplying emission after wing items recreation");
+            ApplyPostVRMEmission();
+        }
     }
 
     /// <summary>
@@ -1888,21 +1926,39 @@ public class WingMenuSystem : MonoBehaviour
     /// </summary>
     private float GetWingAngleWithConfig(int index, bool isLeft)
     {
-        int wingCount = isLeft ? leftWingCount : rightWingCount;
-        if (wingCount <= 1) return angleStart * Mathf.Deg2Rad;
-        
-        float startAngle = angleStart;
-        float endAngle = angleStart + (angleDelta * (wingCount - 1));
-        
-        return Mathf.Lerp(startAngle, endAngle, index / (float)(wingCount - 1)) * Mathf.Deg2Rad;
+        if (bladeSplitMode == BladeSplitMode.Keep)
+        {
+            // blade_split=keep：0-360度の連続配置（一筆書き）
+            int totalWings = leftWingCount + rightWingCount;
+            if (totalWings <= 1) return angleStart * Mathf.Deg2Rad;
+            
+            // 全体のインデックスを計算
+            int globalIndex = isLeft ? index : leftWingCount + index;
+            
+            float startAngle = angleStart;
+            float endAngle = angleStart + (angleDelta * (totalWings - 1));
+            
+            return Mathf.Lerp(startAngle, endAngle, globalIndex / (float)(totalWings - 1)) * Mathf.Deg2Rad;
+        }
+        else
+        {
+            // blade_split=reset/split：従来通りの角度計算（左右独立、二筆書き）
+            int wingCount = isLeft ? leftWingCount : rightWingCount;
+            if (wingCount <= 1) return angleStart * Mathf.Deg2Rad;
+            
+            float startAngle = angleStart;
+            float endAngle = angleStart + (angleDelta * (wingCount - 1));
+            
+            return Mathf.Lerp(startAngle, endAngle, index / (float)(wingCount - 1)) * Mathf.Deg2Rad;
+        }
     }
 
     /// <summary>
     /// HTTP経由で羽の形状を設定する（共通設定）
     /// </summary>
-    public void ConfigureShapeViaHttp(float? length, float? edge, float? modifier)
+    public void ConfigureShapeViaHttp(float? length, float? edge, float? modifier, bool bladeSplit = true)
     {
-        Debug.Log($"[WingMenu] ConfigureShapeViaHttp called - length: {length}, edge: {edge}, modifier: {modifier}");
+        Debug.Log($"[WingMenu] ConfigureShapeViaHttp called - length: {length}, edge: {edge}, modifier: {modifier}, bladeSplit: {bladeSplit}");
         
         bool needsRecreate = false;
         
@@ -1933,8 +1989,20 @@ public class WingMenuSystem : MonoBehaviour
             needsRecreate = true;
         }
         
-        // 共通設定モードに切り替え
-        useIndependentShapes = false;
+        // blade_splitパラメータに基づいて動作モードを決定
+        // デフォルト（true）: 左右独立設定（互換性のため）
+        // false: 連続設定（左右を通してシームレス）
+        useIndependentShapes = bladeSplit;
+        
+        // bladeSplitModeの変更もチェック
+        // WingMenuCommandHandler側でsplitモードの判定が追加されたが、
+        // ここではbladeSplitパラメータのみで判定（互換性のため）
+        BladeSplitMode newMode = bladeSplit ? BladeSplitMode.Reset : BladeSplitMode.Keep;
+        if (bladeSplitMode != newMode)
+        {
+            bladeSplitMode = newMode;
+            needsRecreate = true;
+        }
         
         if (needsRecreate)
         {
@@ -1947,11 +2015,12 @@ public class WingMenuSystem : MonoBehaviour
     /// </summary>
     public void ConfigureShapeIndependentViaHttp(
         float? leftLength, float? leftEdge, float? leftModifier,
-        float? rightLength, float? rightEdge, float? rightModifier)
+        float? rightLength, float? rightEdge, float? rightModifier, bool bladeSplit = true)
     {
         Debug.Log($"[WingMenu] ConfigureShapeIndependentViaHttp called - " +
                  $"left: length={leftLength}, edge={leftEdge}, modifier={leftModifier}, " +
-                 $"right: length={rightLength}, edge={rightEdge}, modifier={rightModifier}");
+                 $"right: length={rightLength}, edge={rightEdge}, modifier={rightModifier}, " +
+                 $"bladeSplit: {bladeSplit}");
         
         bool needsRecreate = false;
         
@@ -1996,6 +2065,14 @@ public class WingMenuSystem : MonoBehaviour
         // 独立設定モードに切り替え
         useIndependentShapes = true;
         
+        // blade_splitパラメータを設定（左右独立設定でもmodifierの計算方法は指定可能）
+        BladeSplitMode newMode = bladeSplit ? BladeSplitMode.Reset : BladeSplitMode.Keep;
+        if (bladeSplitMode != newMode)
+        {
+            bladeSplitMode = newMode;
+            needsRecreate = true;
+        }
+        
         if (needsRecreate)
         {
             RecreateWingMeshes();
@@ -2022,6 +2099,13 @@ public class WingMenuSystem : MonoBehaviour
                 }
             }
         }
+        
+        // VRM読み込み後の場合は、Emissionを再適用
+        if (vrmLoader != null && vrmLoader.LoadedModel != null)
+        {
+            Debug.Log("[WingMenu] Reapplying emission after mesh recreation");
+            ApplyPostVRMEmission();
+        }
     }
 
     /// <summary>
@@ -2037,10 +2121,11 @@ public class WingMenuSystem : MonoBehaviour
         
         // 使用するパラメータを決定
         float currentLength, currentEdge, currentModifier;
+        int effectiveIndex; // サイズ計算に使用するインデックス
         
         if (useIndependentShapes)
         {
-            // 左右独立設定
+            // 左右独立設定：パラメータは個別だが、modifierの計算方法はbladeSplitModeで決まる
             if (isLeft)
             {
                 currentLength = bladeLeftLength;
@@ -2056,14 +2141,57 @@ public class WingMenuSystem : MonoBehaviour
         }
         else
         {
-            // 共通設定
+            // 共通設定：すべて共通パラメータを使用
             currentLength = bladeLength;
             currentEdge = bladeEdge;
             currentModifier = bladeModifier;
         }
         
-        // localIndexに基づいてサイズを調整
-        float sizeMultiplier = 1.0f - (currentModifier * localIndex);
+        // modifierの計算方法はbladeSplitModeで決まる（左右独立設定でも共通設定でも同じ）
+        switch (bladeSplitMode)
+        {
+            case BladeSplitMode.Reset:
+                // blade_split=reset：左右でmodifierをリセット（従来のtrue相当）
+                effectiveIndex = localIndex;
+                break;
+                
+            case BladeSplitMode.Split:
+                // blade_split=split：左右独立配置で、左右を通して連続的にmodifier適用（二筆書き）
+                if (isLeft)
+                {
+                    effectiveIndex = localIndex;
+                }
+                else
+                {
+                    // 右翼：左翼の続きとして連続的に計算
+                    effectiveIndex = leftWingCount + localIndex;
+                }
+                break;
+                
+            case BladeSplitMode.Keep:
+                // blade_split=keep：0-360度配置で、左右を通して連続的にmodifier適用（一筆書き）
+                if (isLeft)
+                {
+                    effectiveIndex = localIndex;
+                }
+                else
+                {
+                    // 右翼：Y座標の並び順に合わせて逆順にする（上から下へ小さくなる）
+                    int totalWings = leftWingCount + rightWingCount;
+                    effectiveIndex = totalWings - 1 - localIndex;
+                }
+                break;
+                
+            default:
+                effectiveIndex = localIndex;
+                break;
+        }
+        
+        // effectiveIndexに基づいてサイズを調整
+        float sizeMultiplier = 1.0f - (currentModifier * effectiveIndex);
+        
+        // 安全チェック：サイズが極小になるのを防ぐ
+        sizeMultiplier = Mathf.Max(sizeMultiplier, 0.001f); // 最小0.1%のサイズを保証
         
         // 基本サイズ
         float baseWidth = 0.4f * sizeMultiplier;
@@ -2071,6 +2199,10 @@ public class WingMenuSystem : MonoBehaviour
         
         // currentEdgeに基づいて先端の幅を計算
         float tipWidth = baseWidth * currentEdge;
+        
+        // 安全チェック：幅が0になるのを防ぐ
+        baseWidth = Mathf.Max(baseWidth, 0.001f);
+        tipWidth = Mathf.Max(tipWidth, 0.001f);
         
         // 頂点を計算（羽の形状）
         Vector3[] vertices = new Vector3[]
@@ -2113,6 +2245,18 @@ public class WingMenuSystem : MonoBehaviour
     }
 
     /// <summary>
+    /// BladeSplitModeを直接設定する（splitモード用）
+    /// </summary>
+    public void SetBladeSplitMode(BladeSplitMode mode)
+    {
+        if (bladeSplitMode != mode)
+        {
+            bladeSplitMode = mode;
+            RecreateWingMeshes();
+        }
+    }
+
+    /// <summary>
     /// HTTP経由で羽の色を設定する
     /// </summary>
     /// <param name="normal">通常時の色モード</param>
@@ -2148,6 +2292,13 @@ public class WingMenuSystem : MonoBehaviour
             
             Color targetColor = GetWingColor(i);
             renderer.material.color = targetColor;
+            
+            // VRM読み込み後は色変更時もEmissionを維持
+            if (vrmLoader != null && vrmLoader.LoadedModel != null && hoveredIndex != i)
+            {
+                // ホバー中でない場合は基本のEmissionを維持
+                ApplyBrightnessEmission(renderer.material);
+            }
         }
     }
 

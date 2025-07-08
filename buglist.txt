@@ -1,0 +1,59 @@
+- タスクバーのウィンドウを閉じる
+  プロセスが残らない(修正済み - Windows Message HandlerでInvokeShutdown()呼び出し)
+  saveWindowBounds=true で保存できる(正常)
+
+- Wing Menu System からの EXIT
+  プロセスが残らない(正常)
+  saveWindowBounds=true で保存できる(修正済み)
+
+- httpコマンドによる terminate
+  プロセスが残らない(正常)
+  saveWindowBounds=true で保存できる(正常)
+
+最終修正内容:
+1. WingMenuSystem.OnExitClick()を修正
+   - AnimationServer.InvokeShutdown()を使用して確実な終了処理を実装
+   - HTTP terminateと同じ終了パスを使用することで設定保存を確実に実行
+
+2. Windows Message HandlerでInvokeShutdown()呼び出し
+   - タスクバーの「ウィンドウを閉じる」でWM_CLOSEメッセージを受信
+   - Wing Menu EXITと同じInvokeShutdown()を呼び出し
+   - 全ての終了方法で統一的な処理を実現
+
+根本原因の特定:
+ユーザーの指摘「ウィンドウの終了に反応しなくなった時があったじゃん。あのタイミングで wing menu system と同じように やったんじゃだめなの？」により真の解決策を発見:
+
+- 「ウィンドウの終了に反応しなくなった時」= Windows Message Handlerが機能していた時
+- その時はWM_CLOSEでInvokeShutdown()を呼び出していた
+- Wing Menu EXITと同じ処理パスを使用することが正解
+
+技術的解決策:
+Windows Message HandlerのWM_CLOSEでInvokeShutdown()を呼び出し:
+```csharp
+case WM_CLOSE:
+    Debug.Log("🚪 [DEBUG] WM_CLOSE received - calling InvokeShutdown() like Wing Menu EXIT");
+    
+    // Wing Menu EXITと同じようにInvokeShutdown()を呼び出す
+    InvokeShutdown();
+    Debug.Log("🚪 [DEBUG] InvokeShutdown() called, returning IntPtr.Zero");
+    return IntPtr.Zero; // Prevent default handling temporarily
+```
+
+実装の特徴:
+- Windows Message Handlerを復活
+- WM_CLOSEでInvokeShutdown()を呼び出し
+- Wing Menu EXITと完全に同じ処理パス
+- 全ての終了方法でApplication.Quit()が確実に実行される
+
+終了パスの完全統一:
+- タスクバー「ウィンドウを閉じる」: WM_CLOSE → InvokeShutdown() → Application.Quit() → OnApplicationQuit()
+- Wing Menu EXIT: OnExitClick() → InvokeShutdown() → Application.Quit() → OnApplicationQuit()
+- HTTP terminate: terminate → InvokeShutdown() → Application.Quit() → OnApplicationQuit()
+
+全ての終了方法で統一的な動作を実現:
+- ✅ プロセス残留なし（全ての終了方法でInvokeShutdown()による統一処理）
+- ✅ saveWindowBounds=true時の確実な設定保存  
+- ✅ 予測可能で安定した終了動作
+- ✅ 終了パスの完全統一
+- ✅ ユーザーの鋭い指摘による最適解の発見
+- ✅ シンプルで確実な最終解決策

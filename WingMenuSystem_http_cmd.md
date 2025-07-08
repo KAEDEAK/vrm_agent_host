@@ -38,7 +38,7 @@ target=wingsys&cmd=menus_define&menu_left=reset_pose,reset_shape,placeholder,pla
 target=wingsys&cmd=menus_clear
 ```
 
-### 3. 設定コマンド [Pending]
+### 3. 設定コマンド [Completed]
 ```
 # 羽の枚数設定
 target=wingsys&cmd=config&left_length=8&right_length=8
@@ -48,6 +48,11 @@ target=wingsys&cmd=config&angle_delta=20&angle_start=0
 
 # 複合設定
 target=wingsys&cmd=config&left_length=6&right_length=8&angle_delta=25&angle_start=10
+
+# パラメータ制限:
+# left_length, right_length: 羽の枚数（1〜100）
+# angle_delta: 角度間隔（-360〜360度）
+# angle_start: 開始角度（-360〜360度）
 ```
 
 ### 4. 変形コマンド [Completed]
@@ -64,26 +69,46 @@ target=wingsys&cmd=scale&xyz=1.2,1.2,1.2
 
 ### 5. 形状制御コマンド [Completed]
 ```
-# 羽の形状設定（共通設定）
+# 羽の形状設定（共通設定 - デフォルト：左右別々）
 target=wingsys&cmd=shape&blade_length=1.0&blade_edge=0.5&blade_modifier=0.0
+
+# 羽の形状設定（共通設定 - 連続動作）
+target=wingsys&cmd=shape&blade_length=1.5&blade_edge=0.3&blade_modifier=0.1&blade_split=false
 
 # 羽の形状設定（左右独立設定）
 target=wingsys&cmd=shape&blade_left_length=1.2&blade_left_edge=0.4&blade_left_modifier=0.1
 target=wingsys&cmd=shape&blade_right_length=1.0&blade_right_edge=0.6&blade_right_modifier=0.05
 
 # パラメータ説明:
-# blade_length: 羽の長さ（0.1〜3.0）- 共通設定
-# blade_edge: 形状の減衰率（0.01〜1.0）- 共通設定
+# blade_length: 羽の長さ（0.1〜100.0）- 共通設定
+# blade_edge: 形状の減衰率（0.001〜10.0）- 共通設定
 #   - 1.0 = 長方形
 #   - 0.5 = 台形  
 #   - 0.01 = 三角形に近い
-# blade_modifier: 次の羽のサイズ減少率（0.0〜0.5）- 共通設定
+# blade_modifier: 次の羽のサイズ減少率（0.0〜10.0）- 共通設定
 #   - 0.0 = 全て同じサイズ
 #   - 0.1 = 次の羽が10%小さくなる
+# blade_split: modifierの計算モード（reset/keep/split、デフォルト：reset）
+#   - reset（デフォルト）: 左右でmodifierをリセット（従来のtrue相当）
+#   - keep: 0-360度配置、modifier連続（一筆書き）
+#   - split: 左右独立配置、modifier連続（二筆書き）
+#   - true/1: resetと同じ（互換性のため）
+#   - false/0: splitと同じ（互換性のため）
 
 # 左右独立パラメータ:
 # blade_left_length, blade_left_edge, blade_left_modifier: 左側専用
 # blade_right_length, blade_right_edge, blade_right_modifier: 右側専用
+
+# blade_split動作の詳細:
+# blade_split=reset（デフォルト、true相当）:
+#   角度配置: 左右独立（従来通り）
+#   modifier: 左翼 0,1,2,3、右翼 0,1,2,3（リセット）
+# blade_split=keep（一筆書き）:
+#   角度配置: 0-360度の連続配置
+#   modifier: 左翼 0,1,2,3、右翼 7,6,5,4（逆順で視覚的に上から下へ小さくなる）
+# blade_split=split（二筆書き、false相当）:
+#   角度配置: 左右独立（従来通り）
+#   modifier: 左翼 0,1,2,3、右翼 4,5,6,7（連続）
 ```
 
 ### 6. 色制御コマンド [Completed]
@@ -291,28 +316,38 @@ target=wingsys&cmd=config&left_length=8&right_length=8&angle_delta=12&angle_star
 ### 形状パラメータの詳細説明
 
 #### blade_length（羽の長さ）
-- **範囲**: 0.1〜3.0
+- **範囲**: 0.1〜100.0
 - **効果**: 羽全体の縦方向のサイズ
 - **例**: 
   - 0.5 = 短い羽
   - 1.0 = 標準的な羽
-  - 2.0 = 長い羽
+  - 10.0 = 巨大な羽
+  - 50.0 = 超巨大な羽
 
 #### blade_edge（形状の減衰率）
-- **範囲**: 0.01〜1.0
+- **範囲**: 0.001〜10.0
 - **効果**: 根元から先端への幅の変化
 - **例**:
   - 1.0 = 長方形（先端も根元と同じ幅）
   - 0.5 = 台形（先端が根元の半分の幅）
   - 0.1 = 鋭い三角形（先端がとても細い）
+  - 5.0 = 逆台形（先端が根元の5倍の幅）
 
 #### blade_modifier（サイズ減少率）
-- **範囲**: 0.0〜0.5
+- **範囲**: 0.0〜10.0
 - **効果**: 羽のインデックスが増えるごとのサイズ減少
 - **例**:
   - 0.0 = 全ての羽が同じサイズ
   - 0.1 = 次の羽が10%小さくなる
-  - 0.2 = 次の羽が20%小さくなる
+  - 1.0 = 次の羽が100%小さくなる（実質消失）
+  - 5.0 = 急激なサイズ減少（安全チェックで最小0.1%保証）
+
+#### blade_split（左右動作モード）
+- **値**: true/false（デフォルト: true）
+- **効果**: blade_modifierの適用方法
+- **例**:
+  - true = 左右別々（従来の互換動作）
+  - false = 連続動作（左右を通してシームレス）
 
 ### 実用的な組み合わせ例
 
@@ -337,3 +372,13 @@ target=wingsys&cmd=shape&blade_length=1.0&blade_edge=0.3&blade_modifier=0.0
 ## 更新履歴
 - 2025-01-06: 初版作成、要件定義完了
 - 2025-01-06: 羽の形状制御機能追加、使用例とデフォルト設定説明追加
+- 2025-01-07: blade_splitパラメータ追加、パラメータ制限大幅緩和、互換性問題修正
+  - blade_split=true（デフォルト）: 左右別々動作（互換性維持）
+  - blade_split=false: 連続動作（左右を通してシームレス）
+  - blade_length: 0.1〜100.0、blade_edge: 0.001〜10.0、blade_modifier: 0.0〜10.0
+  - 羽の枚数: 1〜100、安全チェック追加（0除算・面積0防止）
+- 2025-01-08: blade_splitパラメータを3モードに拡張
+  - blade_split=reset（デフォルト）: 左右でmodifierをリセット（従来のtrue相当）
+  - blade_split=keep: 0-360度配置、modifier連続（右翼は逆順）
+  - blade_split=split: 左右独立配置、modifier連続（従来のfalse相当）
+  - 互換性維持: true/1→reset、false/0→split

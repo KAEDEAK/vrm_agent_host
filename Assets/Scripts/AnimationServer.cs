@@ -51,6 +51,8 @@ public class AnimationServer : MonoBehaviour {
     private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
     [DllImport("kernel32.dll")]
     private static extern void ExitProcess(uint uExitCode);
+    [DllImport("user32.dll")]
+    private static extern bool DestroyWindow(IntPtr hWnd);
 
     private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
     private WndProcDelegate newWndProc;
@@ -201,8 +203,12 @@ public class AnimationServer : MonoBehaviour {
     }
 
     private void OnApplicationQuit() {
+        Debug.Log("🚪 [DEBUG] OnApplicationQuit called");
+        
         TrySaveWindowState();
         StopServer();
+        
+        Debug.Log("🚪 [DEBUG] OnApplicationQuit completed - letting Unity handle termination naturally");
     }
 
     private void OnProcessExit(object sender, EventArgs e) {
@@ -266,28 +272,34 @@ public class AnimationServer : MonoBehaviour {
         try {
             switch (msg) {
                 case WM_CLOSE:
-                    Debug.Log("🚪 WM_CLOSE received - initiating graceful shutdown");
-                    InitiateGracefulShutdown();
+                    Debug.Log("🚪 [DEBUG] WM_CLOSE received - calling InvokeShutdown() like Wing Menu EXIT");
+                    Debug.Log($"🚪 [DEBUG] Current thread: {System.Threading.Thread.CurrentThread.ManagedThreadId}");
+                    Debug.Log($"🚪 [DEBUG] _serverStopping: {_serverStopping}, _forceShutdown: {_forceShutdown}");
+                    
+                    // Wing Menu EXITと同じようにInvokeShutdown()を呼び出す
+                    InvokeShutdown();
+                    Debug.Log("🚪 [DEBUG] InvokeShutdown() called, returning IntPtr.Zero");
                     return IntPtr.Zero; // Prevent default handling temporarily
 
                 case WM_QUERYENDSESSION:
-                    Debug.Log("🔄 WM_QUERYENDSESSION received - preparing for shutdown");
+                    Debug.Log("🔄 [DEBUG] WM_QUERYENDSESSION received - preparing for shutdown");
                     InitiateGracefulShutdown();
                     return new IntPtr(1); // Allow shutdown
 
                 case WM_ENDSESSION:
-                    Debug.Log("🛑 WM_ENDSESSION received - forcing shutdown");
+                    Debug.Log("🛑 [DEBUG] WM_ENDSESSION received - forcing shutdown");
                     _forceShutdown = true;
                     ForceShutdown();
                     return IntPtr.Zero;
 
                 case WM_DESTROY:
-                    Debug.Log("💥 WM_DESTROY received");
+                    Debug.Log("💥 [DEBUG] WM_DESTROY received");
                     _forceShutdown = true;
                     break;
             }
         } catch (Exception ex) {
-            Debug.LogError($"❌ Error in CustomWndProc: {ex.Message}");
+            Debug.LogError($"❌ [DEBUG] Error in CustomWndProc: {ex.Message}");
+            Debug.LogError($"❌ [DEBUG] Stack trace: {ex.StackTrace}");
         }
 
         // Call original window procedure for other messages
@@ -298,70 +310,104 @@ public class AnimationServer : MonoBehaviour {
     }
 
     private void InitiateGracefulShutdown() {
-        if (_serverStopping || _forceShutdown) return;
+        Debug.Log($"🔄 [DEBUG] InitiateGracefulShutdown called - _serverStopping: {_serverStopping}, _forceShutdown: {_forceShutdown}");
+        
+        if (_serverStopping || _forceShutdown) {
+            Debug.Log("🔄 [DEBUG] Already stopping/shutdown, returning early");
+            return;
+        }
 
-        Debug.Log("🔄 Starting graceful shutdown sequence...");
+        Debug.Log("🔄 [DEBUG] Starting graceful shutdown sequence...");
         StartCoroutine(GracefulShutdownSequence());
+        Debug.Log("🔄 [DEBUG] GracefulShutdownSequence coroutine started");
     }
 
     private IEnumerator GracefulShutdownSequence() {
+        Debug.Log("🔄 [DEBUG] GracefulShutdownSequence started");
         float shutdownStartTime = Time.realtimeSinceStartup;
         const float maxShutdownTime = 5.0f; // Maximum 5 seconds for graceful shutdown
 
         // Step 1: Stop accepting new requests
         _serverStopping = true;
-        Debug.Log("🛑 Step 1: Stopped accepting new requests");
+        Debug.Log("🛑 [DEBUG] Step 1: Stopped accepting new requests");
 
         // Step 2: Save window state
+        Debug.Log("💾 [DEBUG] Step 2: Starting window state save");
         TrySaveWindowState();
-        Debug.Log("💾 Step 2: Window state saved");
+        Debug.Log("💾 [DEBUG] Step 2: Window state save completed");
 
         // Step 3: Stop server components
+        Debug.Log("🔌 [DEBUG] Step 3: Starting server component stop");
         StopServer();
-        Debug.Log("🔌 Step 3: Server components stopped");
+        Debug.Log("🔌 [DEBUG] Step 3: Server components stopped");
 
         // Step 4: Wait for threads to finish (with timeout)
+        Debug.Log("🧵 [DEBUG] Step 4: Starting thread wait");
         float threadWaitStart = Time.realtimeSinceStartup;
         while ((httpThread != null && httpThread.IsAlive) || 
                (httpsThread != null && httpsThread.IsAlive)) {
             
+            Debug.Log($"🧵 [DEBUG] Waiting for threads - HTTP: {(httpThread?.IsAlive ?? false)}, HTTPS: {(httpsThread?.IsAlive ?? false)}");
+            
             if (Time.realtimeSinceStartup - threadWaitStart > 3.0f) {
-                Debug.LogWarning("⚠️ Threads taking too long to stop, proceeding with shutdown");
+                Debug.LogWarning("⚠️ [DEBUG] Threads taking too long to stop, proceeding with shutdown");
                 break;
             }
             yield return new WaitForSeconds(0.1f);
         }
-        Debug.Log("🧵 Step 4: Threads stopped");
+        Debug.Log("🧵 [DEBUG] Step 4: Threads stopped");
 
         // Step 5: Final cleanup
+        Debug.Log("🧹 [DEBUG] Step 5: Starting final cleanup");
         try {
             // Clear any remaining resources
             if (audioSource != null) {
                 audioSource.Stop();
                 Destroy(audioSource.gameObject);
+                Debug.Log("🧹 [DEBUG] AudioSource cleaned up");
             }
         } catch (Exception ex) {
-            Debug.LogWarning($"⚠️ Error during final cleanup: {ex.Message}");
+            Debug.LogWarning($"⚠️ [DEBUG] Error during final cleanup: {ex.Message}");
         }
 
         float totalShutdownTime = Time.realtimeSinceStartup - shutdownStartTime;
-        Debug.Log($"✅ Graceful shutdown completed in {totalShutdownTime:F2} seconds");
+        Debug.Log($"✅ [DEBUG] Graceful shutdown completed in {totalShutdownTime:F2} seconds");
 
-        // Step 6: Exit application
+        // Step 6: Destroy window to ensure proper OS-level cleanup
+        Debug.Log("🪟 [DEBUG] Step 6: Starting window destruction");
+        if (!_forceShutdown && hwnd != IntPtr.Zero) {
+            try {
+                bool destroyed = DestroyWindow(hwnd);
+                Debug.Log($"🪟 [DEBUG] Window destruction: {(destroyed ? "success" : "failed")}");
+            } catch (Exception ex) {
+                Debug.LogWarning($"⚠️ [DEBUG] Failed to destroy window: {ex.Message}");
+            }
+        } else {
+            Debug.Log($"🪟 [DEBUG] Skipping window destruction - _forceShutdown: {_forceShutdown}, hwnd: {hwnd}");
+        }
+
+        // Step 7: Exit application with improved process termination
+        Debug.Log("🚪 [DEBUG] Step 7: Starting application exit");
         yield return new WaitForSeconds(0.1f);
         
 #if UNITY_EDITOR
+        Debug.Log("🚪 [DEBUG] Editor mode - setting isPlaying = false");
         EditorApplication.isPlaying = false;
 #else
+        Debug.Log("🚪 [DEBUG] Build mode - calling Application.Quit()");
         Application.Quit();
         
         // If Application.Quit() doesn't work within reasonable time, force exit
+        Debug.Log("🚪 [DEBUG] Waiting 2 seconds for Application.Quit() to take effect");
         yield return new WaitForSeconds(2.0f);
         if (!_forceShutdown) {
-            Debug.LogWarning("⚠️ Application.Quit() taking too long, forcing exit");
+            Debug.LogWarning("⚠️ [DEBUG] Application.Quit() taking too long, forcing exit");
             ForceShutdown();
+        } else {
+            Debug.Log("🚪 [DEBUG] _forceShutdown is true, not calling ForceShutdown again");
         }
 #endif
+        Debug.Log("🔄 [DEBUG] GracefulShutdownSequence completed");
     }
 
     private void ForceShutdown() {
@@ -379,15 +425,44 @@ public class AnimationServer : MonoBehaviour {
 
 #if !UNITY_EDITOR
         try {
-            // Force terminate the process
-            ExitProcess(0);
+            // Force terminate all threads first
+            if (httpThread != null && httpThread.IsAlive) {
+                try {
+                    httpThread.Abort();
+                    Debug.Log("🧵 HTTP thread forcefully terminated");
+                } catch (Exception ex) {
+                    Debug.LogWarning($"⚠️ Failed to abort HTTP thread: {ex.Message}");
+                }
+            }
+            
+            if (httpsThread != null && httpsThread.IsAlive) {
+                try {
+                    httpsThread.Abort();
+                    Debug.Log("🧵 HTTPS thread forcefully terminated");
+                } catch (Exception ex) {
+                    Debug.LogWarning($"⚠️ Failed to abort HTTPS thread: {ex.Message}");
+                }
+            }
+            
+            // Primary method: Environment.Exit for immediate process termination
+            Debug.Log("💀 Forcing immediate process termination with Environment.Exit(0)");
+            System.Environment.Exit(0);
+            
         } catch (Exception ex) {
-            Debug.LogError($"❌ Failed to force exit process: {ex.Message}");
-            // Fallback: try Environment.Exit
+            Debug.LogError($"❌ Failed Environment.Exit: {ex.Message}");
+            // Fallback: try ExitProcess
             try {
-                System.Environment.Exit(0);
+                Debug.Log("💀 Fallback: Using ExitProcess(0)");
+                ExitProcess(0);
             } catch (Exception ex2) {
-                Debug.LogError($"❌ Failed Environment.Exit: {ex2.Message}");
+                Debug.LogError($"❌ Failed ExitProcess: {ex2.Message}");
+                // Last resort: try Application.Quit
+                try {
+                    Debug.Log("💀 Last resort: Application.Quit()");
+                    Application.Quit();
+                } catch (Exception ex3) {
+                    Debug.LogError($"❌ All shutdown methods failed: {ex3.Message}");
+                }
             }
         }
 #endif
@@ -1417,6 +1492,30 @@ public class AnimationServer : MonoBehaviour {
         } catch (Exception ex) {
             Debug.LogWarning($"[Wave] SendWaveJsonResponse transport failure: {ex.Message}");
         }
+    }
+
+    private IEnumerator ForceExitAfterDelay() {
+        Debug.Log("💀 [DEBUG] ForceExitAfterDelay started - waiting 1 second");
+        yield return new WaitForSeconds(1.0f);
+        
+        Debug.Log("💀 [DEBUG] 1 second elapsed, forcing process exit to prevent Unity/CSCore.dll residue");
+        
+#if !UNITY_EDITOR
+        try {
+            Debug.Log("💀 [DEBUG] Calling Environment.Exit(0)");
+            System.Environment.Exit(0);
+        } catch (Exception ex) {
+            Debug.LogError($"❌ [DEBUG] Failed Environment.Exit: {ex.Message}");
+            try {
+                Debug.Log("💀 [DEBUG] Fallback: Calling ExitProcess(0)");
+                ExitProcess(0);
+            } catch (Exception ex2) {
+                Debug.LogError($"❌ [DEBUG] Failed ExitProcess: {ex2.Message}");
+            }
+        }
+#else
+        Debug.Log("💀 [DEBUG] Editor mode - skipping forced exit");
+#endif
     }
 
     #endregion

@@ -164,12 +164,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string leftLengthParam = GetQueryParam(query, "left_length", null);
         if (!string.IsNullOrEmpty(leftLengthParam)) {
             int value = GetQueryInt(query, "left_length", 4);
-            if (value >= 1 && value <= 16) {
+            if (value >= 1 && value <= 100) {
                 leftLength = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "left_length must be between 1 and 16";
+                responseData.message = "left_length must be between 1 and 100";
                 return;
             }
         }
@@ -177,12 +177,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string rightLengthParam = GetQueryParam(query, "right_length", null);
         if (!string.IsNullOrEmpty(rightLengthParam)) {
             int value = GetQueryInt(query, "right_length", 4);
-            if (value >= 1 && value <= 16) {
+            if (value >= 1 && value <= 100) {
                 rightLength = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "right_length must be between 1 and 16";
+                responseData.message = "right_length must be between 1 and 100";
                 return;
             }
         }
@@ -237,16 +237,42 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         float? bladeRightEdge = null;
         float? bladeRightModifier = null;
         
+        // blade_split パラメータ（デフォルト: true）
+        bool bladeSplit = true; // デフォルトで左右別々
+        string bladeSplitMode = "reset"; // デフォルトモード
+        string bladeSplitParam = GetQueryParam(query, "blade_split", null);
+        if (!string.IsNullOrEmpty(bladeSplitParam))
+        {
+            string paramLower = bladeSplitParam.ToLower();
+            if (paramLower == "false" || paramLower == "0" || paramLower == "split")
+            {
+                bladeSplit = true; // splitモードの場合
+                bladeSplitMode = "split";
+            }
+            else if (paramLower == "keep")
+            {
+                // keepモードの場合
+                bladeSplit = false;
+                bladeSplitMode = "keep";
+            }
+            else if (paramLower == "reset" || paramLower == "true" || paramLower == "1")
+            {
+                // resetモード（デフォルト）
+                bladeSplit = true;
+                bladeSplitMode = "reset";
+            }
+        }
+        
         // 共通パラメータの処理
         string bladeLengthParam = GetQueryParam(query, "blade_length", null);
         if (!string.IsNullOrEmpty(bladeLengthParam)) {
             float value = GetQueryFloat(query, "blade_length", 1.0f);
-            if (value >= 0.1f && value <= 3.0f) {
+            if (value >= 0.1f && value <= 100.0f) {
                 bladeLength = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "blade_length must be between 0.1 and 3.0";
+                responseData.message = "blade_length must be between 0.1 and 100.0";
                 return;
             }
         }
@@ -254,12 +280,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string bladeEdgeParam = GetQueryParam(query, "blade_edge", null);
         if (!string.IsNullOrEmpty(bladeEdgeParam)) {
             float value = GetQueryFloat(query, "blade_edge", 0.5f);
-            if (value >= 0.01f && value <= 1.0f) {
+            if (value >= 0.001f && value <= 10.0f) {
                 bladeEdge = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "blade_edge must be between 0.01 and 1.0";
+                responseData.message = "blade_edge must be between 0.001 and 10.0";
                 return;
             }
         }
@@ -267,12 +293,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string bladeModifierParam = GetQueryParam(query, "blade_modifier", null);
         if (!string.IsNullOrEmpty(bladeModifierParam)) {
             float value = GetQueryFloat(query, "blade_modifier", 0.0f);
-            if (value >= 0.0f && value <= 0.5f) {
+            if (value >= 0.0f && value <= 10.0f) {
                 bladeModifier = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "blade_modifier must be between 0.0 and 0.5";
+                responseData.message = "blade_modifier must be between 0.0 and 10.0";
                 return;
             }
         }
@@ -281,12 +307,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string bladeLeftLengthParam = GetQueryParam(query, "blade_left_length", null);
         if (!string.IsNullOrEmpty(bladeLeftLengthParam)) {
             float value = GetQueryFloat(query, "blade_left_length", 1.0f);
-            if (value >= 0.1f && value <= 3.0f) {
+            if (value >= 0.1f && value <= 100.0f) {
                 bladeLeftLength = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "blade_left_length must be between 0.1 and 3.0";
+                responseData.message = "blade_left_length must be between 0.1 and 100.0";
                 return;
             }
         }
@@ -294,12 +320,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string bladeLeftEdgeParam = GetQueryParam(query, "blade_left_edge", null);
         if (!string.IsNullOrEmpty(bladeLeftEdgeParam)) {
             float value = GetQueryFloat(query, "blade_left_edge", 0.5f);
-            if (value >= 0.01f && value <= 1.0f) {
+            if (value >= 0.001f && value <= 10.0f) {
                 bladeLeftEdge = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "blade_left_edge must be between 0.01 and 1.0";
+                responseData.message = "blade_left_edge must be between 0.001 and 10.0";
                 return;
             }
         }
@@ -307,12 +333,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string bladeLeftModifierParam = GetQueryParam(query, "blade_left_modifier", null);
         if (!string.IsNullOrEmpty(bladeLeftModifierParam)) {
             float value = GetQueryFloat(query, "blade_left_modifier", 0.0f);
-            if (value >= 0.0f && value <= 0.5f) {
+            if (value >= 0.0f && value <= 10.0f) {
                 bladeLeftModifier = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "blade_left_modifier must be between 0.0 and 0.5";
+                responseData.message = "blade_left_modifier must be between 0.0 and 10.0";
                 return;
             }
         }
@@ -321,12 +347,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string bladeRightLengthParam = GetQueryParam(query, "blade_right_length", null);
         if (!string.IsNullOrEmpty(bladeRightLengthParam)) {
             float value = GetQueryFloat(query, "blade_right_length", 1.0f);
-            if (value >= 0.1f && value <= 3.0f) {
+            if (value >= 0.1f && value <= 100.0f) {
                 bladeRightLength = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "blade_right_length must be between 0.1 and 3.0";
+                responseData.message = "blade_right_length must be between 0.1 and 100.0";
                 return;
             }
         }
@@ -334,12 +360,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string bladeRightEdgeParam = GetQueryParam(query, "blade_right_edge", null);
         if (!string.IsNullOrEmpty(bladeRightEdgeParam)) {
             float value = GetQueryFloat(query, "blade_right_edge", 0.5f);
-            if (value >= 0.01f && value <= 1.0f) {
+            if (value >= 0.001f && value <= 10.0f) {
                 bladeRightEdge = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "blade_right_edge must be between 0.01 and 1.0";
+                responseData.message = "blade_right_edge must be between 0.001 and 10.0";
                 return;
             }
         }
@@ -347,12 +373,12 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         string bladeRightModifierParam = GetQueryParam(query, "blade_right_modifier", null);
         if (!string.IsNullOrEmpty(bladeRightModifierParam)) {
             float value = GetQueryFloat(query, "blade_right_modifier", 0.0f);
-            if (value >= 0.0f && value <= 0.5f) {
+            if (value >= 0.0f && value <= 10.0f) {
                 bladeRightModifier = value;
             } else {
                 responseData.status = 400;
                 responseData.succeeded = false;
-                responseData.message = "blade_right_modifier must be between 0.0 and 0.5";
+                responseData.message = "blade_right_modifier must be between 0.0 and 10.0";
                 return;
             }
         }
@@ -362,14 +388,31 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
                                    bladeRightLength.HasValue || bladeRightEdge.HasValue || bladeRightModifier.HasValue;
         
         MainThreadInvoker.Invoke(() => {
-            if (hasIndependentParams) {
-                // 左右独立設定
-                wingMenuSystem.ConfigureShapeIndependentViaHttp(
-                    bladeLeftLength, bladeLeftEdge, bladeLeftModifier,
-                    bladeRightLength, bladeRightEdge, bladeRightModifier);
-            } else {
-                // 共通設定
-                wingMenuSystem.ConfigureShapeViaHttp(bladeLength, bladeEdge, bladeModifier);
+            // splitモードの場合は特別な処理が必要
+            if (bladeSplitMode == "split")
+            {
+                // まず通常の設定を適用
+                if (hasIndependentParams) {
+                    wingMenuSystem.ConfigureShapeIndependentViaHttp(
+                        bladeLeftLength, bladeLeftEdge, bladeLeftModifier,
+                        bladeRightLength, bladeRightEdge, bladeRightModifier, true);
+                } else {
+                    wingMenuSystem.ConfigureShapeViaHttp(bladeLength, bladeEdge, bladeModifier, true);
+                }
+                
+                // その後、splitモードを直接設定
+                wingMenuSystem.SetBladeSplitMode(WingMenuSystem.BladeSplitMode.Split);
+            }
+            else
+            {
+                // 通常の処理
+                if (hasIndependentParams) {
+                    wingMenuSystem.ConfigureShapeIndependentViaHttp(
+                        bladeLeftLength, bladeLeftEdge, bladeLeftModifier,
+                        bladeRightLength, bladeRightEdge, bladeRightModifier, bladeSplit);
+                } else {
+                    wingMenuSystem.ConfigureShapeViaHttp(bladeLength, bladeEdge, bladeModifier, bladeSplit);
+                }
             }
         });
         
@@ -377,7 +420,7 @@ public class WingMenuCommandHandler : HttpCommandHandlerBase
         responseData.succeeded = true;
         responseData.message = hasIndependentParams ? 
             "Wing shape configuration updated (independent left/right)" : 
-            "Wing shape configuration updated";
+            $"Wing shape configuration updated (blade_split: {bladeSplit})";
     }
 
     private void HandleTransform(WingMenuSystem wingMenuSystem, NameValueCollection query, ServerResponse responseData, string transformType)

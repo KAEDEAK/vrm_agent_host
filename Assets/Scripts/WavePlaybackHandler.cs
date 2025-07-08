@@ -868,7 +868,43 @@ public class WavePlaybackHandler : MonoBehaviour {
     }
 
     private void OnDestroy() {
+        Debug.Log("🧹 [DEBUG] WavePlaybackHandler.OnDestroy called");
         StopAudioPlayback();
+        
+        // Stop all coroutines
+        StopAllCoroutines();
+        
+        // Clear queue
+        lock (queueLock) {
+            while (waveQueue.Count > 0) {
+                var item = waveQueue.Dequeue();
+                try {
+                    SendJsonResponse(item.context, 503, "server_stopping", item.audioId);
+                } catch (Exception ex) {
+                    Debug.LogWarning($"[WavePlaybackHandler] Failed to send shutdown response: {ex.Message}");
+                }
+            }
+        }
+        
+        // Destroy spatial audio source
+        if (spatialAudioSource != null) {
+            if (spatialAudioSource.isPlaying) {
+                spatialAudioSource.Stop();
+            }
+            Destroy(spatialAudioSource.gameObject);
+            spatialAudioSource = null;
+        }
+        
+        // Destroy streaming clip
+        if (streamingClip != null) {
+            Destroy(streamingClip);
+            streamingClip = null;
+        }
+        
+        // Clear audio buffer
+        lock (audioBuffer) {
+            audioBuffer.Clear();
+        }
         
         // Unsubscribe from VRM load events
         if (vrmLoader != null) {
@@ -878,6 +914,30 @@ public class WavePlaybackHandler : MonoBehaviour {
         if (Instance == this) {
             Instance = null;
         }
+        
+        Debug.Log("🧹 [DEBUG] WavePlaybackHandler cleanup completed");
+    }
+
+    private void OnApplicationQuit() {
+        Debug.Log("🚪 [DEBUG] WavePlaybackHandler.OnApplicationQuit called");
+        
+        // Force cleanup
+        StopAudioPlayback();
+        StopAllCoroutines();
+        
+        // Clear queue with shutdown responses
+        lock (queueLock) {
+            while (waveQueue.Count > 0) {
+                var item = waveQueue.Dequeue();
+                try {
+                    SendJsonResponse(item.context, 503, "server_stopping", item.audioId);
+                } catch (Exception ex) {
+                    Debug.LogWarning($"[WavePlaybackHandler] Failed to send shutdown response: {ex.Message}");
+                }
+            }
+        }
+        
+        Debug.Log("🚪 [DEBUG] WavePlaybackHandler.OnApplicationQuit completed");
     }
 }
 
