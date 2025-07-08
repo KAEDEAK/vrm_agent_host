@@ -1,5 +1,5 @@
-- タスクバーのウィンドウを閉じる
-  プロセスが残らない(修正済み - Windows Message HandlerでInvokeShutdown()呼び出し)
+- [Debug] タスクバーのウィンドウを閉じる
+  プロセスが残らない(修正済みとされているが要検証 - Windows Message HandlerでInvokeShutdown()呼び出し)
   saveWindowBounds=true で保存できる(正常)
 
 - Wing Menu System からの EXIT

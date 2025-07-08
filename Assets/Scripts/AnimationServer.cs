@@ -275,11 +275,15 @@ public class AnimationServer : MonoBehaviour {
                     Debug.Log("🚪 [DEBUG] WM_CLOSE received - calling InvokeShutdown() like Wing Menu EXIT");
                     Debug.Log($"🚪 [DEBUG] Current thread: {System.Threading.Thread.CurrentThread.ManagedThreadId}");
                     Debug.Log($"🚪 [DEBUG] _serverStopping: {_serverStopping}, _forceShutdown: {_forceShutdown}");
-                    
+
                     // Wing Menu EXITと同じようにInvokeShutdown()を呼び出す
                     InvokeShutdown();
-                    Debug.Log("🚪 [DEBUG] InvokeShutdown() called, returning IntPtr.Zero");
-                    return IntPtr.Zero; // Prevent default handling temporarily
+                    Debug.Log("🚪 [DEBUG] InvokeShutdown() called, forwarding WM_CLOSE to original WndProc");
+                    if (oldWndProc != IntPtr.Zero)
+                    {
+                        return CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+                    }
+                    return IntPtr.Zero;
 
                 case WM_QUERYENDSESSION:
                     Debug.Log("🔄 [DEBUG] WM_QUERYENDSESSION received - preparing for shutdown");
