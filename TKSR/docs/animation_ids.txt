@@ -1,0 +1,313 @@
+
+Idle + cute
+?target=animation&cmd=play&id=Idle_cute
+
+Layer + look_away
+target=animation&cmd=play&id=Layer_look_away
+
+  "animations": {
+    "Idle": {
+      "generic": {
+        "alias": "Generic_01",
+        "type": "IntBased",
+        "intValue": 1
+      },
+      "angry": {
+        "alias": "Angry_01",
+        "type": "IntBased",
+        "intValue": 2
+      },
+      "brave": {
+        "alias": "Brave_01",
+        "type": "IntBased",
+        "intValue": 3
+      },
+      "calm": {
+        "alias": "Calm_01",
+        "type": "IntBased",
+        "intValue": 4
+      },
+      "calm_02": {
+        "alias": "Calm_02",
+        "type": "IntBased",
+        "intValue": 5
+      },
+      "concern": {
+        "alias": "Concern_01",
+        "type": "IntBased",
+        "intValue": 6
+      },
+      "classy": {
+        "alias": "Classy_01",
+        "type": "IntBased",
+        "intValue": 7
+      },
+      "cute": {
+        "alias": "Cute_01",
+        "type": "IntBased",
+        "intValue": 8
+      },
+      "denying": {
+        "alias": "Deny_01",
+        "type": "IntBased",
+        "intValue": 9
+      },
+      "energetic": {
+        "alias": "Energetic_01",
+        "type": "IntBased",
+        "intValue": 10
+      },
+      "energetic_02": {
+        "alias": "Energetic_02",
+        "type": "IntBased",
+        "intValue": 11
+      },
+      "sexy": {
+        "alias": "Sexy_01",
+        "type": "IntBased",
+        "intValue": 12
+      },
+      "pitiable": {
+        "alias": "Pitiable_01",
+        "type": "IntBased",
+        "intValue": 13
+      },
+      "stressed": {
+        "alias": "Stress_01",
+        "type": "IntBased",
+        "intValue": 14
+      },
+      "surprise": {
+        "alias": "Surprise_01",
+        "type": "IntBased",
+        "intValue": 15
+      },
+      "think": {
+        "alias": "Think_01",
+        "type": "IntBased",
+        "intValue": 16
+      },
+      "what": {
+        "alias": "What_01",
+        "type": "IntBased",
+        "intValue": 17
+      },
+      "boyish": {
+        "alias": "Boyish_01",
+        "type": "IntBased",
+        "intValue": 18
+      },
+      "cry": {
+        "alias": "Cry_01",
+        "type": "IntBased",
+        "intValue": 19
+      },
+      "laugh": {
+        "alias": "Laugh_01",
+        "type": "IntBased",
+        "intValue": 20
+      },
+      "cute_02": {
+        "alias": "Cute_02",
+        "type": "IntBased",
+        "intValue": 21
+      },
+      "angry_02": {
+        "alias": "Angry_02",
+        "type": "IntBased",
+        "intValue": 22
+      },
+      "fedup": {
+        "alias": "Fedup_01",
+        "type": "IntBased",
+        "intValue": 23
+      },
+      "fedup_02": {
+        "alias": "Fedup_02",
+        "type": "IntBased",
+        "intValue": 24
+      },
+      "cute_03": {
+        "alias": "Cute_03",
+        "type": "IntBased",
+        "intValue": 25
+      },
+      "cat": {
+        "alias": "Cat_01",
+        "type": "IntBased",
+        "intValue": 26
+      },
+      "pointfinger": {
+        "alias": "PointFinger_01",
+        "type": "IntBased",
+        "intValue": 27
+      },
+      "energetic_03": {
+        "alias": "Energetic_03",
+        "type": "IntBased",
+        "intValue": 28
+      },
+      "sexy_02": {
+        "alias": "Sexy_02",
+        "type": "IntBased",
+        "intValue": 29
+      },
+      "sexy_03": {
+        "alias": "Sexy_03",
+        "type": "IntBased",
+        "intValue": 30
+      }
+    },
+    "Other": {
+      "walk": {
+        "alias": "Walk_01",
+        "type": "IntBased",
+        "intValue": 1
+      },
+      "run": {
+        "alias": "Run_01",
+        "type": "IntBased",
+        "intValue": 2
+      },
+      "wave_hand": {
+        "alias": "WaveHand_01",
+        "type": "IntBased",
+        "intValue": 3
+      },
+      "wave_hands": {
+        "alias": "WaveHands_01",
+        "type": "IntBased",
+        "intValue": 4
+      },
+      "wave_arm": {
+        "alias": "WaveArm_01",
+        "type": "IntBased",
+        "intValue": 5
+      },
+      "what": {
+        "alias": "What_01",
+        "type": "IntBased",
+        "intValue": 6
+      },
+      "energetic": {
+        "alias": "Energetic_01",
+        "type": "IntBased",
+        "intValue": 7
+      },
+      "cute": {
+        "alias": "Cute_01",
+        "type": "IntBased",
+        "intValue": 8
+      },
+      "cat": {
+        "alias": "Cat_01",
+        "type": "IntBased",
+        "intValue": 9
+      },
+      "point_finger": {
+        "alias": "PointFinger_01",
+        "type": "IntBased",
+        "intValue": 10
+      }
+    },
+    "Layer": {
+      "start": {
+        "alias": "Reset",
+        "type": "PlayBased",
+        "stateName": "Layer_start",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "look_away": {
+        "alias": "LookAway_01",
+        "type": "PlayBased",
+        "stateName": "Layer_look_away_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "look_away_angry": {
+        "alias": "LookAwayAngry_01",
+        "type": "PlayBased",
+        "stateName": "Layer_look_away_angry_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "nod_once": {
+        "alias": "NodOnce_01",
+        "type": "PlayBased",
+        "stateName": "Layer_nod_once_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "nod_twice": {
+        "alias": "NodTwice_01",
+        "type": "PlayBased",
+        "stateName": "Layer_nod_twice_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "shake_head": {
+        "alias": "ShakeHead_01",
+        "type": "PlayBased",
+        "stateName": "Layer_shake_head_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "swing_body": {
+        "alias": "SwingBody_01",
+        "type": "PlayBased",
+        "stateName": "Layer_swing_body_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "laugh_up": {
+        "alias": "LaughUp_01",
+        "type": "PlayBased",
+        "stateName": "Layer_laugh_up_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "laugh_down": {
+        "alias": "LaughDown_01",
+        "type": "PlayBased",
+        "stateName": "Layer_laugh_down_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "shake_body": {
+        "alias": "ShakeBody_01",
+        "type": "PlayBased",
+        "stateName": "Layer_shake_body_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "surprise": {
+        "alias": "Surprise_01",
+        "type": "PlayBased",
+        "stateName": "Layer_surprise_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "tilt_neck": {
+        "alias": "TiltNeck_01",
+        "type": "PlayBased",
+        "stateName": "Layer_tilt_neck_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "turn_right": {
+        "alias": "TurnRight_01",
+        "type": "PlayBased",
+        "stateName": "Layer_turn_right_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      },
+      "turn_left": {
+        "alias": "TurnLeft_01",
+        "type": "PlayBased",
+        "stateName": "Layer_turn_left_01",
+        "playLayer": 1,
+        "normalizedTime": 0.0
+      }
+    }
+  }

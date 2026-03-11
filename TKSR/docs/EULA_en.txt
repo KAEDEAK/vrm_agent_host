@@ -1,0 +1,73 @@
+VRM Agent Host Tsukuseri End User License Agreement (EULA)
+Enactment Date: 2026-02-22
+Provider: MAG exponent 23 (hereinafter referred to as the “Provider”)
+
+Article 1 (Acceptance and Effectiveness)
+  This Agreement shall become effective when the user downloads, obtains, or uses this Software, and the user shall be deemed to have agreed to this Agreement at that time.
+
+Article 2 (Definitions)
+  1. “Software” means “VRM Agent Host™ Tsukuseri” distributed by the Provider in ZIP format, together with all files included therein (including executable files, DLLs, data, settings, materials, documentation, and updates).
+  2. “Works” means streamed videos, recordings, screenshots, and any other expressive works generated or recorded by the user through use of the Software.
+
+Article 3 (License Grant)
+  1. The Provider grants the user a non-exclusive, non-transferable, and non-sublicensable license to use the Software solely for the user’s own use on devices managed by the user.
+  2. The user may publicly release Works. Such release may include monetization through advertising revenue, tips, sponsorships, or similar means.
+
+Article 4 (Prohibited Acts)
+  The user shall not engage in any of the following acts:
+  1. Providing, distributing, sharing, or publicly making available all or any part of the Software, by any medium or means.
+  2. Providing any means of obtaining the Software to any third party, or making the Software obtainable by any third party, including by providing download URLs, invitation links, access keys, passwords, tokens, or similar information.
+  3. Distributing or posting torrent or other acquisition means or identifying information relating to the Software, thereby making the Software obtainable by third parties.
+  4. Distributing any part, extract, differential patch, replacement file, modified version, or other derivative portion of the Software, including distribution on the pretext that it is “not the main body” of the Software.
+  5. Reselling, auctioning, or otherwise transferring the Software (including any right to obtain it) for monetary gain.
+  6. Reverse engineering, decompiling, disassembling, analyzing, modifying, or creating derivative works of the Software.
+  7. Circumventing, disabling, or providing means to circumvent authentication, feature restrictions, or technical protection measures, if any exist.
+  8. Infringing any intellectual property rights, moral rights, or any other rights of the Provider or any third party.
+  9. Using the Software in violation of laws or public policy, or in connection with criminal acts.
+  10. Using the Software for ethically problematic purposes, for religious activities, religious assertions, or blasphemous purposes, or for political activities, political propaganda, or public opinion manipulation.
+  11. Using the Software for medical devices, life-support systems, transportation control systems such as aviation, railways, or automobiles, nuclear facilities, or any other use that may cause serious harm to human life or social infrastructure.
+
+Article 5 (Works and Redistribution)
+  1. The publication of Works under Article 3, Paragraph 2 does not grant permission to redistribute the Software or any part thereof.
+  2. Any act that makes the Software (or any part thereof) obtainable by a third party through publication of Works shall constitute redistribution and is prohibited under the preceding Article.
+
+Article 6 (Ownership of Rights)
+  All copyrights and any other intellectual property rights relating to the Software shall belong to the Provider, and the Provider does not waive any such rights.
+
+Article 7 (Third-Party Terms and Third-Party Data)
+  1. The Software may load external data such as VRM data (including model data created and distributed through VRoid). Rights relating to such external data belong to their respective rights holders, and this Agreement does not transfer or alter such rights.
+  2. When using external data, the user shall comply with the terms of use applicable to such data and any terms established by its distributor. However, the scope of permitted use of the Software under this Agreement is restricted by the prohibited acts set forth in Article 4, and even if the terms applicable to external data permit political or religious activities, the user shall not use the Software for any purpose falling under Article 4, Item 10.
+  3. If the source from which the Software is obtained or distributed is subject to separate terms of use or other related rules, the user shall also comply with those terms, and this Agreement does not permit any use in violation thereof.
+
+Article 8 (Measures in Case of Breach)
+  1. If the user breaches this Agreement, the Provider may immediately terminate the license granted hereunder without prior notice.
+  2. The Provider may take any necessary measures, including seeking an injunction against the infringing act and demanding deletion (including mirrors, re-uploads, and derivative distributions).
+  3. The user shall bear the reasonable costs incurred by the Provider in responding to such breach, including but not limited to investigation costs, communication costs, procedural costs, and attorneys’ fees.
+
+Article 9 (Network Use)
+  1. Because the Software includes HTTP server functionality, the user shall use the Software with the understanding that operation of the Software may result in the Software becoming accessible from external networks.
+  2. The user shall be solely responsible for implementing appropriate network management and security settings in the environment in which the Software is used, including port settings, firewall settings, and access controls.
+  3. If the Software is operated in a state where it is accessible from the Internet or any other external network, the user shall be solely responsible for configuring appropriate protective measures such as a reverse proxy, authentication mechanisms, and access controls.
+  4. The Provider shall bear no responsibility whatsoever for any unauthorized access, data loss, system failure, or any other damage arising from the user’s network settings or usage environment.
+
+Article 10 (Disclaimer)
+  The Software is provided “as is,” and the Provider makes no warranties of any kind, whether express or implied, with respect to the Software.
+  The Provider shall not be liable for any damages arising from the use of or inability to use the Software.
+
+Article 11 (Notices and Amendments)
+  1. Any notice from the Provider shall be made by any of the following means designated by the Provider: a communication method specified by the Provider, posting on the distribution page, or posting in accompanying documentation, and such notice shall be deemed received at the time of transmission or posting.
+  2. The Provider may amend the contents of this Agreement. Any amended terms shall be notified by posting them on the distribution page or in accompanying documentation.
+
+Article 12 (Language)
+  The official text of this Agreement shall be in Japanese, and even if a translation is provided, the Japanese text shall prevail in the event of any difference in interpretation.
+
+Article 13 (Governing Law and Jurisdiction)
+  This Agreement shall be governed by the laws of Japan. Any dispute arising in connection with this Agreement or the Software shall be subject to the exclusive jurisdiction in the first instance of the Japanese court having jurisdiction over the location of the Provider’s general venue.
+
+Article 14 (Termination of Provision and Suspension of Use)
+  1. The Provider may, at its sole discretion and regardless of reason, terminate or suspend all or part of the provision of the Software or the license granted under this Agreement.
+  2. If the provision of the Software is terminated or use is suspended pursuant to the preceding paragraph, the user shall immediately cease using the Software.
+  3. The Provider shall not be liable for any damages incurred by the user as a result of termination of provision or suspension of use under this Article.
+
+Article 15 (Severability)
+  If any provision of this Agreement is held invalid, the remaining provisions shall continue in full force and effect.

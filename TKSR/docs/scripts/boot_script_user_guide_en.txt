@@ -1,0 +1,42 @@
+
+Boot Command Script Guide
+-----------------------------------
+These scripts are shell script versions of the command set found in
+the test scenario "Setup example" under TEST in the VRM Agent Host (VRMAH) API Tester.
+
+The default port is 34560.
+If VRMAH is running on your local machine, you can access the API Tester at:
+
+http://localhost:34560/
+
+VRMAH on its own only displays the menu system; no VRM model is loaded.
+Voice and lip sync are also disabled by default.
+
+If you want to get things running quickly without using the test page or test client,
+you can run these scripts to easily perform initial setup such as loading a VRM model.
+
+(a) setup_example.bat - For Windows Command Prompt
+  Set the IP address in SERVER.
+  If running on the local machine, you can leave it as localhost.
+
+(b) setup_example.ps1 - For Windows PowerShell
+  Same as above.
+
+(c) setup_example.sh - For Ubuntu, Linux, WSL
+  On WSL, localhost may not be reachable.
+  Change it to something like:
+  SERVER="http://192.168.1.123:34560"
+  and then run the script.
+  After editing, make sure the line endings are LF.
+  ./setup_example.sh
+
+
+----------------
+Changing the VRM Model
+----------------
+The default VRM file loaded is sample01.vrm.
+You can either change the filename in the script from sample01.vrm to the desired VRM file,
+or rename your file to sample01.vrm and overwrite the existing one.
+
+Alternatively, you can load a model via command:
+curl -I "http://localhost:34560/?target=vrm&cmd=load&file=sample02.vrm"
