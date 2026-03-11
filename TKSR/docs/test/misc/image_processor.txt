@@ -1,0 +1,37 @@
+● image_processor.py
+
+  実装した機能:
+
+  1. コマンドライン引数解析
+    - -host: サーバーのホスト:ポート
+    - -file: 送信する画像ファイル
+    - -retry: リトライ有効化 (yes/no)
+    - -retryMax: 最大リトライ回数
+    - -retryInterval: リトライ間隔（ミリ秒）
+    - -retryTimeout: タイムアウト時間（ミリ秒）
+    - -w: 画像幅（ピクセル）
+    - -h_size: 画像高さ（※-hはヘルプと重複するため-h_sizeを使用）
+  2. 画像リサイズ機能
+    - wのみ指定: 縦横比を維持して高さを自動計算
+    - h_sizeのみ指定: 縦横比を維持して幅を自動計算
+    - 両方指定: 指定サイズにリサイズ
+    - 未指定: オリジナルサイズのまま送信
+    - 高品質リサイズ（LANCZOS法）
+  3. リトライ機能
+    - ステータスコード200以外で自動リトライ
+    - タイムアウト時も自動リトライ
+    - リトライ間隔を設定可能
+  4. エラーハンドリング
+    - ファイルが見つからない場合は適切なエラーメッセージを表示して終了
+    - ネットワークエラー、タイムアウト、HTTPエラーを区別して表示
+    - JSONレスポンスのパース（サーバーからの幅・高さ・表示時間を表示）
+  5. サーバー仕様準拠
+    - POST /image エンドポイントに送信
+    - base64エンコード + CRLF×2終端
+    - PNG形式で送信（透過対応）
+
+  使用例:
+  python image_processor.py -host 192.168.1.73:34560 -file test_image.png -retry yes -retryMax 5 -retryInterval 1000
+   -retryTimeout 1000 -w 640
+
+  virtual_avator_sock/TEST/image_processor.py:1

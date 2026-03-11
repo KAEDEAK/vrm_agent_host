@@ -1,0 +1,1 @@
+py image_processor.py -host 192.168.1.73:34560 -file test_image.png -retry yes -retryMax 5 -retryInterval 1000 -retryTimeout 1000 -w 640
