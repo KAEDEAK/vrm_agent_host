@@ -1,0 +1,45 @@
+
+Boot Command Script についての解説です。
+-----------------------------------
+これらのスクリプトの内容は VRM Agent Host (VRMAH) の API テスター の TEST にある 
+テストシナリオ: Setup example のコマンド群を シェルスクリプト化したものです。
+
+ポートはデフォルトの場合 34560 です。
+VRMAH がローカルマシンで起動中の場合、以下からAPIテスターにアクセスできます。
+
+http://localhost:34560/
+
+VRMAH 単体では、メニューシステムが表示されるのみで、VRM は読み込まれません。
+音声やリップシンクも初期状態ではオフになっています。
+
+上記のテストページやテストクライアントを使わずに、とりあえず動かしたい場合には
+これらのスクリプトを実行することで、VRM を読み込むなどの初期設定を手軽に行えます。
+
+(a) setup_example.bat Windows コマンドプロンプト用
+  SERVER に IPアドレスを指定してください。
+  ローカルマシンで実行する場合、localhost のままで大丈夫です。
+
+(b) setup_example.ps1 Windows powershell用
+  同上
+
+(c) setup_example.sh  Ubuntu, Linux, WSL 
+  WSL の場合、localhost は接続できない場合があります。
+  SERVER="http://192.168.1.123:34560"
+  のように変更したうえで実行してください。
+  その際、編集したら改行が LF であることを確認してください。
+  ./setup_example.sh
+
+(d) 終了できなくなったら、これで強制終了を試みます。
+
+
+
+----------------
+VRM を変えたい場合
+----------------
+読み込まれる vrm ファイル名は、sample01.vrm になっています。
+スクリプト中の sample01.vrm を 読み込みたい vrm のファイル名に変えてもいいし
+リネームできるなら sample01.vrm にして上書きすればいいです。
+
+もしくは、以下のようにコマンドで読み込めます。
+curl -I "http://localhost:34560/?target=vrm&cmd=load&file=sample02.vrm"
+

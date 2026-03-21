@@ -1,0 +1,59 @@
+-----------------------
+Config Files
+-----------------------
+
+These are examples of config files.
+
+Multiple config files can be placed with the following file names.
+
+They are merged internally at runtime.
+
+Files loaded later have higher priority.
+
+They are loaded in the following order:
+
+- Built-in default config
+- config.json
+- lastWindowBounds.json
+- override_*.json
+- override.json
+
+
+By preparing a file that contains only the parameters you want to change
+without modifying the base config,
+you can quickly switch between configurations.
+
+-----------------------
+config.json
+-----------------------
+This file is generated on the first launch.
+It contains most settings with their default values in a comprehensive manner.
+
+-----------------------
+override.json
+-----------------------
+The recommended approach is to create and use an override.json file.
+It is convenient to treat config.json as read-only.
+You can use multiple override files as shown below.
+They are merged in order. override.json is merged last.
+
+- override_1.json
+- override_2.json
+- override_3.json
+- override.json
+
+-----------------------
+lastWindowBounds.json
+-----------------------
+lastWindowBounds.json is created automatically.
+It stores the window position and other layout settings.
+Deleting this file will reset the window to its initial position.
+
+
+-----------------------
+config_dump.json
+-----------------------
+config_dump.json is not loaded at startup.
+It is output by ?target=server&cmd=dump_config.
+Use it when you want to check the current configuration.
+It is read-only.

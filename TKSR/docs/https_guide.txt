@@ -1,0 +1,68 @@
+VRM Agent Host を HTTPS 化し WAN から安全にアクセスさせるための一覧
+
+目的
+VRM Agent Host（Unity 6/Mono, HTTP）をインターネット経由で安全に制御できるようにする。
+
+注意
+この内容は無保証です。あくまで、足掛かりとしてご利用ください。
+ご自身で対応できない場合は、高度なAIや詳しい人に聞いてください。
+
+基本アーキテクチャ
+
+VRM Agent Host は localhost:PORT で HTTP 待受け。
+
+同一マシンまたは DMZ 内にリバースプロキシを置き TLS 終端。
+
+WAN からの通信は HTTPS → リバースプロキシ → HTTP → VRM Agent Host の順に流れる。
+
+推奨リバースプロキシ候補
+A. Caddy : 自動証明書、設定が最少、HTTP/2/3 対応。
+B. Nginx / OpenResty : 実績豊富、細かな制御とログ機能。
+C. Traefik : Docker/K8s との統合が簡単、自動 ACME。
+D. Cloudflare (Orange Cloud) : エッジ終端＋WAF＋DoS 対策。バックエンドは自己署名で可。
+E. IIS + ARR : Windows ドメイン環境で GUI 管理したい場合。
+
+セキュリティ設計の要点
+• TLS 1.2/1.3 のみ許可。
+• HTTP → HTTPS 強制リダイレクト。
+• HSTS を有効化（max-age は段階導入）。
+• リバースプロキシと VRM の間は 127.0.0.1 または内部 VLAN 限定。
+• mTLS（相互 TLS）でクライアント証明書認証を行うとより堅牢。
+• レート制限と WAF をリバースプロキシ側で設定。
+• VRM 側は起動ごとに乱数トークンを生成しカスタムヘッダで認証。
+• ログはサーバ名・IP・CN・メソッド・パス・結果・レイテンシを記録。
+
+運用ガイド
+• 証明書は ACME（Let’s Encrypt など）または社内 CA。更新前に自動アラート。
+• リバースプロキシはサービス監視（systemd / Windows Service）で自動再起動。
+• VRM Agent Host のポートはファイアウォールで外部遮断。
+• 定期的に TLS の暗号スイートとバージョンを棚卸し。
+• 想定外のパスやメソッドは 403 または 404 を即時返却。
+
+導入手順ダイジェスト（Caddy 例）
+
+VRM Agent Host を localhost:8123 で起動。
+
+Caddyfile を作成
+reception.example.com {
+reverse_proxy localhost:8123
+encode gzip
+tls you@example.com
+
+header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}
+
+caddy run -config Caddyfile で常駐。
+
+DNS A/AAAA を reception.example.com → 公開 IP へ向ける。
+
+ファイアウォールで 443 のみ開放。80 は 443 へリダイレクト。
+
+フォールバック / 例外シナリオ
+• 社内 LAN のみで利用する場合は自己署名証明書＋内部 CA で十分。
+• ブラウザ混在コンテンツ問題が無ければローカル HTTP のままでも可。
+• Unity プロセス内で SslStream を使う方法は保守負荷が高いため最終手段。
+
+用語簡略
+mTLS = mutual TLS（相互認証付き TLS）
+ACME = Automatic Certificate Management Environment（自動証明書発行プロトコル）

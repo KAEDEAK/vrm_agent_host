@@ -1,0 +1,38 @@
+{
+    "listenLocalhostOnly": false,
+    "allowedRemoteIPs": [
+      "192.168.1.101",
+      "192.168.1.102",
+      "192.168.1.103",
+      "192.168.1.104"
+    ],
+    "wavePlaybackEnabled": true,
+    "wavePlaybackConcurrency": "queue",
+    "window": {
+      "transparent": "alpha",
+      "transparentColor": "#000000",
+      "allowDragObjects": true,
+      "saveWindowBounds": true,
+      "pointerEventsNone": false,
+      "borderless": true,
+      "stayOnTop": false,
+      "bringToTop": 60000,
+      "background": {
+        "type": "image",
+        "color": "#000000",
+        "image": "sample01.png"
+      }
+    },
+    "telemetryEnabled": true,
+    "wingMenu": {
+      "labelFacing": "camera",
+      "debug":true
+    },
+    "bodyInteraction": {
+      "interactionChannel": "face",
+      "falloff": "gaussian",
+      "useFacePokeShader": true,
+      "useVrm10PointerCollider": true,
+    },
+    "mainThreadQueueMax": 256
+  }
