@@ -427,6 +427,50 @@ wing menu system（wingsys）
 - 左翼は0番から、右翼は `left_length` 番から順に割当て
 - 羽の枚数 < メニュー定義: 超過分は無視／羽の枚数 > メニュー定義: 不足分は自動で "placeholder"
 
+fk（Forward Kinematics）
+ボーンの直接回転制御。
+
+| cmd | 概要 | 例 |
+| --- | --- | --- |
+| set | ボーンの位置・回転を設定 | `?target=fk&cmd=set&bone=Hips&rot=10,20,0` |
+| get | ボーンの位置・回転を取得 | `?target=fk&cmd=get&bone=Hips&coord=global` |
+| get_all | 全ボーンの回転を一括取得 | `?target=fk&cmd=get_all&bones=main` |
+| enable | FK overrideの有効/無効 | `?target=fk&cmd=enable&enable=true` |
+| push | 現在のFK overrideを保存 | `?target=fk&cmd=push` |
+| pop | FK overrideを復元 | `?target=fk&cmd=pop` |
+| reset | FK overrideをリセット | `?target=fk&cmd=reset` |
+| set_mask | FK適用から除外するボーンを設定 | `?target=fk&cmd=set_mask&exclude=LeftUpperLeg,LeftLowerLeg,LeftFoot,...` |
+| clear_mask | ボーンマスクを解除 | `?target=fk&cmd=clear_mask` |
+| get_mask | ボーンマスクを取得 | `?target=fk&cmd=get_mask` |
+| pose_save | ポーズを保存 | `?target=fk&cmd=pose_save&pose_name=my_pose` |
+| pose_load | ポーズを適用 | `?target=fk&cmd=pose_load&pose_name=my_pose` |
+| play | FKアニメーションクリップを再生 | `?target=fk&cmd=play&file=clip.vrm.json&loop=n&speed=1.0&blend=0.25` |
+| stop | 再生中のFKアニメーションを停止 | `?target=fk&cmd=stop&reset=y` |
+| animation | クリップのファイル操作 (list_files / inspect / play_status) | `?target=fk&cmd=animation&op=list_files` |
+| upload_clip | VRM humanoid FKクリップJSONを POSTでアップロード | `POST ?target=fk&cmd=upload_clip&name=my_clip` (Content-Type: application/json, body=clip JSON) |
+
+- `coord=global` を指定するとワールド座標系で操作可能
+- `bones=main` で主要18ボーンに限定取得可能
+- ボーンマスクにより特定のボーンをFK適用から除外可能（IKとの併用時に有用）
+- `play` を呼ぶ前に `enable=true` で FK を有効化しておくこと
+- `upload_clip` の `name` は `[A-Za-z0-9_-]{1,64}`、保存先は `FK_FOLDER/<name>.vrm.json`、ボディサイズ上限 8 MB、重複は 409
+
+ik（Inverse Kinematics）
+四肢の位置・回転制御。
+
+| cmd | 概要 | 例 |
+| --- | --- | --- |
+| set | IKターゲットを設定 | `?target=ik&cmd=set&limb=LeftLeg&weight=1&enable=true` |
+| get | IKターゲット状態を取得 | `?target=ik&cmd=get&limb=LeftLeg` |
+| enable | IKシステムの有効/無効 | `?target=ik&cmd=enable&enable=true` |
+| reset | IK状態をリセット | `?target=ik&cmd=reset` |
+| play | IKアニメーション再生 | `?target=ik&cmd=play&name=wave` |
+| stop | IKアニメーション停止 | `?target=ik&cmd=stop` |
+| list | 利用可能なIKアニメーション一覧 | `?target=ik&cmd=list` |
+
+- `limb`: LeftArm, RightArm, LeftLeg, RightLeg
+- FK + IK 連携: FKで上半身を回転させつつ、脚IKで足位置をワールド空間で固定可能
+
 multiple（複数コマンド一括実行）
 - 1 リクエストで複数コマンドを順次実行: `?target=multiple&cmd=exec_all&target=vrm&cmd=load&file=model.vrm&target=animation&cmd=play&id=Idle_generic`
 
