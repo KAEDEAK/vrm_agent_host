@@ -104,7 +104,7 @@ getLoc / getRot のレスポンス例（抜粋）
 **可視化機能**（デバッグ・調整用）:
 - SpringBoneコライダー可視化: `&visibleCollider=true` - 赤い球体で反応範囲を表示
 - FacePokeメッシュ干渉可視化: `&visibleFacePoke=true` - 緑の球体で変形位置・強度を表示
-- 両方を表示: `&visible=true`（レガシー互換）または `&visibleCollider=true&visibleFacePoke=true`
+- 両方を表示: `&visibleCollider=true&visibleFacePoke=true`
 - 仕様（簡易）:
   - Top-level: `clicked`, `dragged`, `dragging`
   - parts: `standardName`, `modelName`, `clicked/clickCount/lastClickedAt/lastClickedAgoMs`, `dragged/dragCount/lastDraggedAt/lastDraggedAgoMs`, `feel`（空でない場合のみ）
@@ -139,7 +139,7 @@ getLoc / getRot のレスポンス例（抜粋）
   - 可視化: `visibleCollider` で赤球（SpringBone範囲）、`visibleFacePoke` で緑球（メッシュ変形）を表示。
 
 主要パラメータ（任意）
-- **可視化**: `visibleCollider`, `visibleFacePoke`, `visible`（デバッグ・調整用）
+- **可視化**: `visibleCollider`, `visibleFacePoke`（デバッグ・調整用）
 - **VRM1.0制御**: `useVrm10PointerCollider`（FastSpringBone用コライダー）
 - **Face Poke**: `facePokeImplementation=cpu|shader`, `facePokeRadius`, `facePokeForceGain`
 - **FacePoke 部位指定**: `channel=all|head|chest|arms|lower`（デフォルト: all）
@@ -148,6 +148,7 @@ getLoc / getRot のレスポンス例（抜粋）
   - `chest`: chest 部位のみ（chest, breast, body, torso を含むメッシュ）
   - `arms`: arms 部位のみ（arm, hand, glove を含むメッシュ）
   - `lower`: lower 部位のみ（leg, foot, skirt, hip を含むメッシュ）
+- **FacePoke weld（メッシュ割れ防止）**: `pokeWeldEnable=true|false`（デフォルト: true）ほか `pokeWeldDistance`, `pokeWeldNormalDot`, `pokeFrontFacingOnly`, `pokeFrontFacingDotMin`。シーム頂点をグループ化して割れを防ぐ全部位共通設定。通常は変更不要
 - **ローカライズ**: `localRadius`, `localForce`, `falloff=gaussian|linear|none`
 - **SpringBone**: `maxJoints`, `patterns`（名前パターン、`,`区切り）
 - **距離制御**:
@@ -241,9 +242,24 @@ image
 | status | 表示状態を取得 | `?target=image&cmd=status` |
 | size | サイズと単位を設定/取得 | `?target=image&cmd=size&w=80&h=60&unit=percent` |
 | show | 直近受信した画像を再表示 | `?target=image&cmd=show` |
+| show_file | `VRMAH_UserData/cache/media` に置いた画像を名前指定で表示 | `?target=image&cmd=show_file&name=image.png` |
 | set_destination | 画像の反映先を切り替え | `?target=image&cmd=set_destination&where=image_display` |
 | reset_eyes | 目に適用したテクスチャを元に戻す | `?target=image&cmd=reset_eyes` |
 | eyes_debug | 目テクスチャの診断情報を取得 | `?target=image&cmd=eyes_debug` |
+
+movie
+動画 (mp4/webm) のオーバーレイ再生と反映先の制御。`POST /movie`（base64、image と同一の送信方式）で動画を送ると、羽・背景・目のいずれかで再生されます。デフォルトはループ再生・ミュートです。
+
+| cmd | 概要 | 例 |
+| --- | --- | --- |
+| set | ループ・ミュート・音量などの設定（パラメータなしで現在設定取得） | `?target=movie&cmd=set&loop=true&mute=false&volume=0.8` |
+| clear | 現在の表示をクリア | `?target=movie&cmd=clear` |
+| status | 再生状態を取得 | `?target=movie&cmd=status` |
+| show_movie_display | 直近受信した動画を再表示・再再生 | `?target=movie&cmd=show_movie_display` |
+| set_destination | 動画の反映先を切り替え (`movie_display`/`background`/`eyes`) | `?target=movie&cmd=set_destination&where=movie_display` |
+| play / pause / stop | 再生制御（stop は表示も復元） | `?target=movie&cmd=play` |
+| play_file | `VRMAH_UserData/cache/media` に置いたファイルを名前指定で再生 | `?target=movie&cmd=play_file&name=video.mp4` |
+| reset_eyes | 目の動画反映を元に戻す | `?target=movie&cmd=reset_eyes` |
 
 world
 ワールド重力の設定と取得。
