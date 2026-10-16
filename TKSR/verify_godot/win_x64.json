@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "kind": "VRMAH2 release checksums",
+  "product": "VRMAgentHost2",
+  "platform": "win_x64",
+  "algorithm": "sha256",
+  "policy": "critical-runtime-v1",
+  "version": "0.5.14",
+  "timestamp": "2026-10-16T13:22:52.4888207+00:00",
+  "files": [
+    {
+      "path": "runtime.pck",
+      "size": 1934284,
+      "sha256": "45051be9342240b24da537d55ea9467b7e30e04d4e15e2b4a33bae98535acef1"
+    },
+    {
+      "path": "animations.pack",
+      "size": 2431195,
+      "sha256": "a85ab707afdcb90e6b9f90d4d818696d2cd2f7b95cddf3f439743e5ef69d834a"
+    },
+    {
+      "path": "launch.cmd",
+      "size": 89,
+      "sha256": "71ed0197fbd17547f609228a3cc3ea57b403e6142ee79eeb5ae227ab81e54d20"
+    },
+    {
+      "path": "launch.ps1",
+      "size": 3851,
+      "sha256": "9f7adbf5d9cf52bd2d2b17f62060412129a7cb5ebf217f3978cd37a81acddec8"
+    },
+    {
+      "path": ".godot/mono/temp/bin/Debug/VRMAgentHost2.dll",
+      "size": 887808,
+      "sha256": "92ddfdee4e4641c028248c40849712b2f3f306061087d9865cbf6e5000624ac3"
+    },
+    {
+      "path": ".godot/mono/temp/bin/Debug/VRMAgentHost2.deps.json",
+      "size": 1643,
+      "sha256": "86f288411fad3379edcb2a56827bed9c04eb126a41f080d14b921334afae5ad8"
+    },
+    {
+      "path": ".godot/mono/temp/bin/Debug/VRMAgentHost2.runtimeconfig.json",
+      "size": 303,
+      "sha256": "0b539cd55c434f10c9e5913db2d3a936cd8364449499f28ef21a1108f828e7e9"
+    },
+    {
+      "path": ".godot/mono/temp/bin/Debug/GodotSharp.dll",
+      "size": 5928960,
+      "sha256": "2afe2686aacfefac36da6601b59aeb05e560f06e4970cd5036100acd2ca4249d"
+    },
+    {
+      "path": ".godot/mono/temp/bin/Debug/GodotSharpEditor.dll",
+      "size": 303104,
+      "sha256": "195c81c1ccb7c05559fc79b4acbb9025154a74ad99ecb9bb3747b5fbfc2ed1d1"
+    },
+    {
+      "path": "runtime/godot/Godot_v4.7.2-stable_mono_win64.exe",
+      "size": 181449736,
+      "sha256": "45336315eb6f1a52a8923bc4f2ce8079a03dc4939dcb7d531047890f1f7cdfab"
+    },
+    {
+      "path": "runtime/godot/Godot_v4.7.2-stable_mono_win64_console.exe",
+      "size": 198152,
+      "sha256": "2445d009a5e0474fc7064b9767100e9d2c09521890ac5625476bfb81cf03f2d4"
+    },
+    {
+      "path": "runtime/godot/GodotSharp/Api/Debug/GodotPlugins.dll",
+      "size": 12288,
+      "sha256": "1d94e9624cb0f1c2e196f296d131fce2934ec850e0ca3d78e0fa3ebd71a70e90"
+    },
+    {
+      "path": "runtime/godot/GodotSharp/Api/Debug/GodotPlugins.runtimeconfig.json",
+      "size": 291,
+      "sha256": "f7ecefae96040c2437e1c98914954b211546391ed2bf6dfb8fa8836600ec1491"
+    },
+    {
+      "path": "runtime/godot/GodotSharp/Api/Debug/GodotSharp.dll",
+      "size": 6362112,
+      "sha256": "af104a6fdca648c2092b542ce49a773ee4c3a1388d065968bb42a80ace49e84e"
+    },
+    {
+      "path": "runtime/godot/GodotSharp/Api/Debug/GodotSharpEditor.dll",
+      "size": 325120,
+      "sha256": "967b0de3b31a0962befcae96a44e692caa33e9a18660405ef56019532b9055c3"
+    },
+    {
+      "path": "runtime/ffmpeg/ffmpeg.exe",
+      "size": 227398656,
+      "sha256": "09948d4cdd0650da6ff5a87577469f2a218dc2615ae379f8f734d24c49de0f73"
+    }
+  ]
+}
