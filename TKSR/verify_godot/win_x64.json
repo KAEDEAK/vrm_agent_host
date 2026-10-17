@@ -4,19 +4,14 @@
   "product": "VRMAgentHost2",
   "platform": "win_x64",
   "algorithm": "sha256",
-  "policy": "critical-runtime-v3",
+  "policy": "critical-runtime-v4",
   "version": "0.5.16",
-  "timestamp": "2026-10-17T02:00:08.1070777+00:00",
+  "timestamp": "2026-10-17T05:26:29.0822552+00:00",
   "files": [
     {
       "path": "tsukuseri.exe",
-      "size": 194231384,
-      "sha256": "9125df681b123234769569a59ea80527baac00bcce89db9167a27139fc3e8ac3"
-    },
-    {
-      "path": "runtime/ffmpeg/ffmpeg.exe",
-      "size": 227398656,
-      "sha256": "09948d4cdd0650da6ff5a87577469f2a218dc2615ae379f8f734d24c49de0f73"
+      "size": 194242136,
+      "sha256": "71c7ad17ef0e33e20b57f149a7685141bd1f814a430c9c9f0894beda092e4279"
     }
   ]
 }
