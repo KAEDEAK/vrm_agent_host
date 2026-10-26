@@ -6,12 +6,12 @@
     "algorithm":  "sha256",
     "policy":  "critical-runtime-v4",
     "version":  "0.5.16",
-    "timestamp":  "2026-10-26T02:58:24.7682079+00:00",
+    "timestamp":  "2026-10-26T07:55:28.8436797+00:00",
     "files":  [
                   {
                       "path":  "tsukuseri.exe",
                       "size":  194340376,
-                      "sha256":  "19d8b8139a4f5f5001e50a365f6dea3648ba3eb759ab0ff46c6f18f8382e497b"
+                      "sha256":  "134142cf9f81a7a1b6a219a2a9e9b2c422ae09d4c8e96f84fb12176b23fcc08b"
                   }
               ]
 }
