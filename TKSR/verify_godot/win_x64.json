@@ -1,17 +1,17 @@
 {
-  "schema": 1,
-  "kind": "VRMAH2 release checksums",
-  "product": "VRMAgentHost2",
-  "platform": "win_x64",
-  "algorithm": "sha256",
-  "policy": "critical-runtime-v4",
-  "version": "0.5.16",
-  "timestamp": "2026-10-21T05:08:49.1345376+00:00",
-  "files": [
-    {
-      "path": "tsukuseri.exe",
-      "size": 194333368,
-      "sha256": "81243bcc673f2cf6c7532090aee0d71c06496ad48d93645029f0d6e9ff4d2a52"
-    }
-  ]
+    "schema":  1,
+    "kind":  "VRMAH2 release checksums",
+    "product":  "VRMAgentHost2",
+    "platform":  "win_x64",
+    "algorithm":  "sha256",
+    "policy":  "critical-runtime-v4",
+    "version":  "0.5.16",
+    "timestamp":  "2026-10-26T02:58:24.7682079+00:00",
+    "files":  [
+                  {
+                      "path":  "tsukuseri.exe",
+                      "size":  194340376,
+                      "sha256":  "19d8b8139a4f5f5001e50a365f6dea3648ba3eb759ab0ff46c6f18f8382e497b"
+                  }
+              ]
 }
